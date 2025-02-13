@@ -1,0 +1,29 @@
+import pytest
+import os
+import shutil
+from dotenv import load_dotenv
+from label_studio_sdk.client import LabelStudio
+from label_studio_sdk import Client
+
+
+load_dotenv()
+LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
+API_KEY = os.getenv("API_KEY")
+PROJECT_ID = 24
+
+def pytest_configure():
+    pytest.PROJECT_ID = PROJECT_ID
+    pytest.ls = LabelStudio(base_url=LABEL_STUDIO_URL, api_key=API_KEY)
+    pytest.ls_client = Client(url=LABEL_STUDIO_URL, api_key=API_KEY)
+
+@pytest.hookimpl()
+def pytest_sessionfinish(session):
+    print("Cleaning up testing session...")
+    allow_delete = input("Delete created folders and files? [Y/n]")
+    if allow_delete == 'Y' or allow_delete == 'y':
+        base_path = f"./gym/project_{PROJECT_ID}"
+        if os.path.exists(base_path):
+            shutil.rmtree(base_path)  # Delete the entire project directory
+            print(f"\nDeleted project directories at {base_path}")
+    else:
+        print("Test files were not deleted!") 
