@@ -22,8 +22,13 @@ def pytest_sessionfinish(session):
     allow_delete = input("Delete created folders and files? [Y/n]")
     if allow_delete == 'Y' or allow_delete == 'y':
         base_path = f"./gym/project_{PROJECT_ID}"
+        local_save_path = "./local-saves"
         if os.path.exists(base_path):
             shutil.rmtree(base_path)  # Delete the entire project directory
             print(f"\nDeleted project directories at {base_path}")
+        if os.path.exists(local_save_path):
+            shutil.rmtree(local_save_path)
+            os.makedirs(local_save_path, exist_ok=True)
+            print("Cleared local-saves folder!")
     else:
         print("Test files were not deleted!") 

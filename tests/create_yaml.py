@@ -11,7 +11,7 @@ def test_create_yaml():
     assert os.path.exists(f"./gym/project_{pytest.PROJECT_ID}/data.yaml")
     with open(yaml_path, 'r') as file:
         prime_service = yaml.safe_load(file)
-        assert prime_service["train"] == f"./gym/project_{pytest.PROJECT_ID}/images/train"
-        assert prime_service["test"] == f"./gym/project_{pytest.PROJECT_ID}/images/test"
-        assert prime_service["val"] == f"./gym/project_{pytest.PROJECT_ID}/images/val"
+        assert prime_service["train"] == f"images/train"
+        assert prime_service["test"] == f"images/test"
+        assert prime_service["val"] == f"images/val"
         assert prime_service["nc"] == len(prime_service["names"])

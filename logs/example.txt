@@ -1,0 +1,59 @@
+=======================================
+ Training Session - {timestamp}
+=======================================
+🔹 **Project Name**: {project_name}
+🔹 **Project ID**: {self.project_id}
+🔹 **Total Data Points**: {total_data}
+🔹 **Training Samples**: {train_count}
+🔹 **Validation Samples**: {val_count}
+🔹 **Test Samples**: {test_count}
+🔹 **Number of Classes**: {num_classes}
+🔹 **Classes**: {class_names}
+
+📌 **Training Configuration**
+- **Model**: {model_name}
+- **Epochs**: {epochs}
+- **Batch Size**: {batch_size}
+- **Image Size**: {image_size}
+- **Device**: {device}
+
+📊 **Training Metrics**
+- **Final Training Loss**: {train_loss:.4f}
+- **Final Validation Loss**: {val_loss:.4f}
+- **Best mAP@50**: {map50:.4f}
+- **Best mAP@50-95**: {map50_95:.4f}
+
+📈 **Class-wise Performance**
+{class_wise_metrics}
+
+✅ **Training Completed Successfully** (Stopped at Epoch {final_epoch})
+---------------------------------------------------
+=======================================
+ 🚨 Training Error - {timestamp}
+=======================================
+🔹 **Project Name**: {project_name}
+🔹 **Dataset**: {dataset_name}
+🔹 **Total Data Points**: {total_data}
+🔹 **Training Samples**: {train_count}
+🔹 **Validation Samples**: {val_count}
+🔹 **Test Samples**: {test_count}
+🔹 **Number of Classes**: {num_classes}
+🔹 **Classes**: {class_names}
+
+📌 **Training Configuration**
+- **Model**: {model_name}
+- **Epochs Attempted**: {epochs_attempted}
+- **Batch Size**: {batch_size}
+- **Image Size**: {image_size}
+- **Device**: {device}
+
+❌ **Error Details**
+- **Error Type**: {error_type}
+- **Error Message**: {error_message}
+- **Stack Trace**:
+{stack_trace}
+
+🔄 **Recovery Actions Taken**
+{recovery_actions}
+
+---------------------------------------------------
