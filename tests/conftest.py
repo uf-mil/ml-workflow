@@ -9,7 +9,7 @@ from label_studio_sdk import Client
 load_dotenv()
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
-PROJECT_ID = 24
+PROJECT_ID = 19
 
 def pytest_configure():
     pytest.PROJECT_ID = PROJECT_ID
@@ -20,7 +20,7 @@ def pytest_configure():
 def pytest_sessionfinish(session):
     print("Cleaning up testing session...")
     allow_delete = input("Delete created folders and files? [Y/n]")
-    if allow_delete != 'n' or allow_delete != 'N':
+    if allow_delete != 'n' and allow_delete != 'N':
         base_path = f"./gym/project_{PROJECT_ID}"
         local_save_path = "./local-saves"
         if os.path.exists(base_path):

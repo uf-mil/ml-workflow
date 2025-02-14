@@ -33,12 +33,14 @@ class ModelTransporter:
     
     def save_model(self, model, weights_name)->str:
         model_path = os.path.join(self.save_folder, "weights", weights_name)
+        model_dir = os.path.join(self.save_folder, "weights")
 
         # Check for USB device
         usb_drive = self.__scan_for_available_usb_device()
         if usb_drive:
-            usb_path = os.path.join(usb_drive, model_path)
-            torch.save(model.state_dict(), usb_path)
+            usb_path = os.path.join(usb_drive,"ml-workflow", model_dir)
+            os.makedirs(usb_path, exist_ok=True)
+            torch.save(model.state_dict(), os.path.join(usb_path, weights_name))
             return f"✅ Model saved to USB: {usb_path}"
             
 
@@ -69,8 +71,13 @@ class ModelTransporter:
         # Check for USB device
         usb_drive = self.__scan_for_available_usb_device()
         if usb_drive:
-            usb_path = os.path.join(usb_drive, save_path)
-            shutil.move(str(metrics_path), str(usb_path))
+            usb_path = os.path.join(usb_drive,"ml-workflow", save_path)
+            os.makedirs(usb_path, exist_ok=True)
+            allfiles = os.listdir(str(metrics_path))
+            for f in allfiles:
+                if os.path.isdir(os.path.join(str(metrics_path),f)):
+                    continue
+                shutil.move(os.path.join(str(metrics_path),f), os.path.join(str(usb_path),f))
             return f"✅ Metrics saved to USB: {usb_path}"
             
 
@@ -81,7 +88,12 @@ class ModelTransporter:
         # Save locally if all else fails
         save_path = os.path.join("./local-saves/", save_path)
         os.makedirs(save_path, exist_ok=True)
-        shutil.move(str(metrics_path), str(save_path))
+        allfiles = os.listdir(str(metrics_path))
+        for f in allfiles:
+            if os.path.isdir(os.path.join(str(metrics_path),f)):
+                    continue
+            shutil.move(os.path.join(str(metrics_path),f), os.path.join(str(save_path),f))
+
         return f"✅ Metrics saved locally: {save_path}"
     
     def full_save(self, model, weights_name, metrics_path)->str:

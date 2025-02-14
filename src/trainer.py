@@ -37,7 +37,7 @@ class Trainer:
         self.ls_client = ls_client
         self.ls = ls
         
-        self.labels = list(list(ls.projects.get(24).get_label_interface().labels)[0].keys())
+        self.labels = list(list(ls.projects.get(project_id).get_label_interface().labels)[0].keys())
         self.data_count_map = {}
 
         self.model = YOLO("./models/yolo11n.pt")
@@ -152,51 +152,51 @@ class Trainer:
         print(self.model.metrics)
 
         # Extract YOLO training results
-        train_loss = results.results_dict.get("metrics/box_loss", "N/A")
-        val_loss = results.results_dict.get("metrics/val_loss", "N/A")
-        map50 = results.results_dict.get("metrics/mAP_0.5", "N/A")
-        map50_95 = results.results_dict.get("metrics/mAP_0.5:0.95", "N/A")
+        precision = results.results_dict.get("metrics/precision(B)", "N/A")
+        recall = results.results_dict.get("metrics/recall(B)", "N/A")
+        map50 = results.results_dict.get("metrics/mAP50(B)", "N/A")
+        map50_95 = results.results_dict.get("metrics/mAP50-95(B)", "N/A")
         
         # Class-wise accuracy
         class_wise_metrics = "\n".join(
-            [f"- {class_name}: {results.results_dict.get('metrics/'+class_name+'_precision', 'N/A')}" 
-            for class_name in self.labels]
+            [f"- {class_name}: {results.maps[i]}" 
+            for i, class_name in enumerate(self.labels)]
         )
 
         # Create log entry
         log_entry = f"""
-    =======================================
-    Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    =======================================
-    🔹 **Project Name**: {self.project.title}
-    🔹 **Project ID**: {self.project_id}
-    🔹 **Total Data Points**: {self.data_count_map['total']}
-    🔹 **Training Samples**: {self.data_count_map['train']}
-    🔹 **Validation Samples**: {self.data_count_map['val']}
-    🔹 **Test Samples**: {self.data_count_map['test']}
-    🔹 **Number of Classes**: {len(self.labels)}
-    🔹 **Classes**: {self.labels}
+=======================================
+Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+=======================================
+🔹 **Project Name**: {self.project.title}
+🔹 **Project ID**: {self.project_id}
+🔹 **Total Data Points**: {self.data_count_map['total']}
+🔹 **Training Samples**: {self.data_count_map['train']}
+🔹 **Validation Samples**: {self.data_count_map['val']}
+🔹 **Test Samples**: {self.data_count_map['test']}
+🔹 **Number of Classes**: {len(self.labels)}
+🔹 **Classes**: {self.labels}
 
-    📌 **Training Configuration**
-    - **Model**: {self.model.model_name}
-    - **Epochs Attempted**: {500}
-    - **Batch Size**: {-1}
-    - **Image Size**: {640}
-    - **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
+📌 **Training Configuration**
+- **Model**: {self.model.model_name}
+- **Epochs Attempted**: {500}
+- **Batch Size**: {-1}
+- **Image Size**: {640}
+- **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
 
-    📊 **Training Metrics**
-    - **Final Training Loss**: {train_loss}
-    - **Final Validation Loss**: {val_loss}
-    - **Best mAP@50**: {map50}
-    - **Best mAP@50-95**: {map50_95}
+📊 **Training Metrics**
+- **Final Training Precision**: {precision}
+- **Final Training Recall**: {recall}
+- **Best mAP@50**: {map50}
+- **Best mAP@50-95**: {map50_95}
 
-    📈 **Class-wise Performance**
-    {class_wise_metrics}
+📈 **Class-wise Performance**
+{class_wise_metrics}
 
-    ✅ **Training Completed Successfully**
-    {footer}
-    ---------------------------------------------------
-    """
+✅ **Training Completed Successfully**
+{footer}
+---------------------------------------------------
+"""
         
         # Write to log file
         with open(log_file, "r+") as f:
@@ -226,35 +226,35 @@ class Trainer:
         stack_trace = traceback.format_exc()
         
         log_entry = f"""
-    =======================================
-    🚨 Training Error - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    =======================================
-    🔹 **Project Name**: {self.project.title}
-    🔹 **Project ID**: {self.project_id}
-    🔹 **Total Data Points**: {self.data_count_map['total']}
-    🔹 **Training Samples**: {self.data_count_map['train']}
-    🔹 **Validation Samples**: {self.data_count_map['val']}
-    🔹 **Test Samples**: {self.data_count_map['test']}
-    🔹 **Number of Classes**: {len(self.labels)}
-    🔹 **Classes**: {self.labels}
+=======================================
+🚨 Training Error - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+=======================================
+🔹 **Project Name**: {self.project.title}
+🔹 **Project ID**: {self.project_id}
+🔹 **Total Data Points**: {self.data_count_map['total']}
+🔹 **Training Samples**: {self.data_count_map['train']}
+🔹 **Validation Samples**: {self.data_count_map['val']}
+🔹 **Test Samples**: {self.data_count_map['test']}
+🔹 **Number of Classes**: {len(self.labels)}
+🔹 **Classes**: {self.labels}
 
-    📌 **Training Configuration**
-    - **Model**: {self.model.model_name}
-    - **Epochs Attempted**: {500}
-    - **Batch Size**: {-1}
-    - **Image Size**: {640}
-    - **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
+📌 **Training Configuration**
+- **Model**: {self.model.model_name}
+- **Epochs Attempted**: {500}
+- **Batch Size**: {-1}
+- **Image Size**: {640}
+- **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
 
-    ❌ **Error Details**
-    - **Error Type**: {error_type}
-    - **Error Message**: {error_message}
-    - **Stack Trace**:
-    {stack_trace}
+❌ **Error Details**
+- **Error Type**: {error_type}
+- **Error Message**: {error_message}
+- **Stack Trace**:
+{stack_trace}
 
-    🔄 **Recovery Actions Taken**
-    - {suggest_recovery(error_type)}
+🔄 **Recovery Actions Taken**
+- {suggest_recovery(error_type)}
 
-    ---------------------------------------------------
+---------------------------------------------------
     """
 
         # Write to log file
@@ -298,6 +298,11 @@ class Trainer:
         except Exception as e:
             self.__log_error(e)
         
+    def __leave_gym(self):
+        base_path = f"./gym/project_{self.project_id}"
+        if os.path.exists(base_path):
+            shutil.rmtree(base_path)  # Delete the entire project directory
+            print(f"\nDeleted project directories at {base_path}")
 
     async def train(self):
         print("[INFO]: Creating yaml file for training")
@@ -309,6 +314,9 @@ class Trainer:
         #TODO: When a training session finishes remove the project id from the training set
         print("[INFO]: Training model on tiny...")
         self.begin_training()
+
+        print("[INFO]: Cleaning up project directory from the gym...")
+        self.__leave_gym()
         
         
         
