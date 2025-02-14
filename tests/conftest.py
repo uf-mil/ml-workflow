@@ -20,7 +20,7 @@ def pytest_configure():
 def pytest_sessionfinish(session):
     print("Cleaning up testing session...")
     allow_delete = input("Delete created folders and files? [Y/n]")
-    if allow_delete == 'Y' or allow_delete == 'y':
+    if allow_delete != 'n' or allow_delete != 'N':
         base_path = f"./gym/project_{PROJECT_ID}"
         local_save_path = "./local-saves"
         if os.path.exists(base_path):

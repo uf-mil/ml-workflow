@@ -148,24 +148,18 @@ class Trainer:
     
     def __log_training_session(self,results, footer=""):
         log_file = f"./logs/{datetime.datetime.now().strftime('%Y-%m-%d')}.txt"
-
-        print(results)
-        return
     
+        print(self.model.metrics)
+
         # Extract YOLO training results
-        model_name = self.model.model_name
         train_loss = results.results_dict.get("metrics/box_loss", "N/A")
         val_loss = results.results_dict.get("metrics/val_loss", "N/A")
         map50 = results.results_dict.get("metrics/mAP_0.5", "N/A")
         map50_95 = results.results_dict.get("metrics/mAP_0.5:0.95", "N/A")
-        final_epoch = results.epoch + 1
-        batch_size = results.batch_size
-        image_size = results.imgsz
-        device = results.device
         
         # Class-wise accuracy
         class_wise_metrics = "\n".join(
-            [f"- {class_name}: {results.results_dict.get(f'metrics/{class_name}_precision', 'N/A'):.4f}" 
+            [f"- {class_name}: {results.results_dict.get('metrics/'+class_name+'_precision', 'N/A')}" 
             for class_name in self.labels]
         )
 
@@ -184,11 +178,11 @@ class Trainer:
     🔹 **Classes**: {self.labels}
 
     📌 **Training Configuration**
-    - **Model**: {model_name}
-    - **Epochs**: {final_epoch}
-    - **Batch Size**: {batch_size}
-    - **Image Size**: {image_size}
-    - **Device**: {device}
+    - **Model**: {self.model.model_name}
+    - **Epochs Attempted**: {500}
+    - **Batch Size**: {-1}
+    - **Image Size**: {640}
+    - **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
 
     📊 **Training Metrics**
     - **Final Training Loss**: {train_loss}
@@ -199,14 +193,17 @@ class Trainer:
     📈 **Class-wise Performance**
     {class_wise_metrics}
 
-    ✅ **Training Completed Successfully** (Stopped at Epoch {final_epoch})
+    ✅ **Training Completed Successfully**
     {footer}
     ---------------------------------------------------
     """
         
         # Write to log file
-        with open(log_file, "a") as f:
+        with open(log_file, "r+") as f:
+            old_content = f.read()
+            f.seek(0)
             f.write(log_entry + "\n")
+            f.write(old_content)
         
         print(f"Logged training session to {log_file}")
     
@@ -261,8 +258,11 @@ class Trainer:
     """
 
         # Write to log file
-        with open(log_file, "a") as f:
+        with open(log_file, "r+") as f:
+            old_content = f.read()
+            f.seek(0)
             f.write(log_entry + "\n")
+            f.write(old_content)
 
         print(f"Logged error to {log_file}")
 
