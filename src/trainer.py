@@ -14,7 +14,7 @@ from ultralytics import YOLO
 from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
-from src.transporter import ModelTransporter
+from transporter import ModelTransporter
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
@@ -304,19 +304,25 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             shutil.rmtree(base_path)  # Delete the entire project directory
             print(f"\nDeleted project directories at {base_path}")
 
-    async def train(self):
-        print("[INFO]: Creating yaml file for training")
-        self.create_yaml()
+    async def train(self, callback = None):
+        try:
+            print("[INFO]: Creating yaml file for training")
+            self.create_yaml()
 
-        print("[INFO]: Downloading and organizing data from LabelStudio...")
-        self.get_and_organize_data()
+            print("[INFO]: Downloading and organizing data from LabelStudio...")
+            self.get_and_organize_data()
 
-        #TODO: When a training session finishes remove the project id from the training set
-        print("[INFO]: Training model on tiny...")
-        self.begin_training()
+            #TODO: When a training session finishes remove the project id from the training set
+            print("[INFO]: Training model on tiny...")
+            self.begin_training()
 
-        print("[INFO]: Cleaning up project directory from the gym...")
-        self.__leave_gym()
+            print("[INFO]: Cleaning up project directory from the gym...")
+            self.__leave_gym()
+        except Exception as e:
+            return
+        finally:
+            if callback and callable(callback):
+                callback(self.project_id)
         
         
         
