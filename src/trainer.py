@@ -14,7 +14,7 @@ from ultralytics import YOLO
 from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
-from transporter import ModelTransporter
+from src.transporter import ModelTransporter
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
@@ -147,10 +147,8 @@ class Trainer:
             save_img_label_pair(i, task, 'val')
     
     def __log_training_session(self,results, footer=""):
-        log_file = f"./logs/{datetime.datetime.now().strftime('%Y-%m-%d')}.txt"
+        log_file = os.path.join(os.getcwd(),"logs",f"{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
     
-        print(self.model.metrics)
-
         # Extract YOLO training results
         precision = results.results_dict.get("metrics/precision(B)", "N/A")
         recall = results.results_dict.get("metrics/recall(B)", "N/A")
@@ -199,11 +197,14 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
         
         # Write to log file
-        with open(log_file, "r+") as f:
-            old_content = f.read()
-            f.seek(0)
+        log_file_exists = os.path.exists(log_file)
+        with open(log_file, "r+" if log_file_exists else "w") as f:
+            if log_file_exists:
+                old_content = f.read()
+                f.seek(0)                                                               
             f.write(log_entry + "\n")
-            f.write(old_content)
+            if log_file_exists:
+                f.write(old_content)
         
         print(f"Logged training session to {log_file}")
     
@@ -219,7 +220,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             }
             return suggestions.get(error_type, "Check the stack trace for more details.")
 
-        log_file = f"./logs/{datetime.datetime.now().strftime('%Y-%m-%d')}.txt"
+        log_file = os.path.join(os.getcwd(), "logs",f"{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
     
         error_type = type(error).__name__
         error_message = str(error)
@@ -258,11 +259,14 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     """
 
         # Write to log file
-        with open(log_file, "r+") as f:
-            old_content = f.read()
-            f.seek(0)
+        log_file_exists = os.path.exists(log_file)
+        with open(log_file, "r+" if log_file_exists else "w") as f:
+            if log_file_exists:
+                old_content = f.read()
+                f.seek(0)  
             f.write(log_entry + "\n")
-            f.write(old_content)
+            if log_file_exists:
+                f.write(old_content)
 
         print(f"Logged error to {log_file}")
 
@@ -319,6 +323,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             print("[INFO]: Cleaning up project directory from the gym...")
             self.__leave_gym()
         except Exception as e:
+            print(f"[ERROR]: {e}")
             return
         finally:
             if callback and callable(callback):
