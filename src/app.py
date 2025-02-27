@@ -43,8 +43,12 @@ def update_made_to_labelstudio():
     project_id = data['project']
     num_annotations = int(data['num_tasks_with_annotations'])
     
-    scheduler.project_tasks_dif[project_id] = abs(num_annotations - scheduler.project_finished_tasks_dict[project_id])
     # Receive webhook and update tracking information
+    scheduler.project_tasks_dif[project_id] = abs(num_annotations - scheduler.project_finished_tasks_dict[project_id])
+    
+    # Check to start training
+    scheduler.check_and_train()
+    
     return {"success": "Called"}, 201
 
 if __name__ == "__main__":
