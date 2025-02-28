@@ -1,6 +1,7 @@
 import os
 import csv
 import time
+import asyncio
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -12,7 +13,8 @@ from label_studio_sdk import Client
 
 from trainer import Trainer
 
-MINUTES_TO_WAIT_BEFORE_TRAINING = 5
+MINUTES_TO_WAIT_BEFORE_TRAINING = 0.1
+MINIMUM_ANNOTATIONS_REQUIRED = 20
 
 class Scheduler:
     def __init__(self, async_processes_allowed:int=1, batch_size:int = 32):
@@ -49,9 +51,20 @@ class Scheduler:
             with open("project_tasks.csv", 'r') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    self.project_finished_tasks_dict[row["id"]] = row["finished_tasks"]   
+                    self.project_finished_tasks_dict[int(row["id"])] = int(row["finished_tasks"])   
         else: # Load finished_task data from LabelStudio
             with open("project_tasks.csv", "w", newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["id","finished_tasks"])
+
+                projects = self.ls.projects
+                for p in projects.list():
+                    writer.writerow([p.id,p.finished_task_number])
+                    self.project_finished_tasks_dict[p.id] = p.finished_task_number
+            
+    def __del__(self):
+        os.remove("project_tasks.csv")
+        with open("project_tasks.csv", "w", newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(["id","finished_tasks"])
 
@@ -65,29 +78,31 @@ class Scheduler:
         last_amount_annotated = self.project_finished_tasks_dict[id]
 
         # Wait 5-minutes before checking if the number of annotations has increased
-        time.sleep(MINUTES_TO_WAIT_BEFORE_TRAINING*60)
+        await asyncio.sleep(MINUTES_TO_WAIT_BEFORE_TRAINING*60)
 
-        # Start training if the number of 
+        # Start training if the number of annotations is the same
         if self.project_finished_tasks_dict[id] > last_amount_annotated:
             self.__listen_for_more_annotations_and_train(id, trainer)
             return
         else:
-            trainer.train(callback=lambda id: self.training_set.remove(id))
+            await trainer.train(callback=lambda id: self.training_set.remove(trainer))
             self.project_tasks_dif[id] = 0
             self.project_finished_tasks_dict[id] = last_amount_annotated
 
 
     async def check_and_train(self):
-        for id, val in self.project_tasks_dif:
-            if val >= self.batch_size: # Condition to set for training
+        for id, val in self.project_tasks_dif.items():
+            if val >= self.batch_size and self.project_finished_tasks_dict[id] > MINIMUM_ANNOTATIONS_REQUIRED: # Condition to set for training
                 if id not in self.training_queue_set:
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
+            else:
+                print(val, self.project_finished_tasks_dict[id])
         
         # Place next item in training set and begin training
-        if len(self.training_set) < self.async_processes_allowed:
+        if len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
             id = self.training_queue.pop(0)
             self.project_to_time_of_threshold_reached[id] = datetime.now()
             trainer = Trainer(id, self.ls, self.ls_client)
             self.training_set.add(trainer)
-            self.__listen_for_more_annotations_and_train(id=id, trainer=trainer)
+            await self.__listen_for_more_annotations_and_train(id=id, trainer=trainer)

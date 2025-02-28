@@ -1,11 +1,10 @@
 import os
 import glob
-import socket
 import smbclient.path
 import torch
 import shutil
 import smbclient
-import traceback
+import ipaddress
 from pathlib import Path
 
 API_KEY = os.getenv("API_KEY")
@@ -35,9 +34,9 @@ class ModelTransporter:
         
     def __is_file_server_available(self, ip):
         try:
-            socket.create_connection((ip, 2222), timeout=2)  # Test SSH port
+            ipaddress.ip_address(ip)  # Test SSH port
             return True
-        except (socket.timeout, socket.error):
+        except ValueError:
             return False
     
     def save_model(self, model, weights_name)->str:
@@ -55,23 +54,24 @@ class ModelTransporter:
 
         # Check if file server is available
         try:
-            print("[INFO]: File server is available!")
-            smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
-            print("[SUCCESS]: File server is accessible!")
+            if self.__is_file_server_available(FILE_SERVER_IP):
+                print("[INFO]: File server is available!")
+                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                print("[SUCCESS]: File server is accessible!")
 
-            remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", model_dir)
-            
-            smbclient.makedirs(remote_path, exist_ok=True)
+                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", model_dir)
+                
+                smbclient.makedirs(remote_path, exist_ok=True)
 
-            remote_file_path = os.path.join(remote_path, weights_name)
+                remote_file_path = os.path.join(remote_path, weights_name)
 
-            print(remote_file_path)
-            with smbclient.open_file(remote_file_path, mode="wb") as remote_f:
-                torch.save(model.state_dict(), remote_f)
-            
-            return f"✅ Model saved to file server: {remote_path}"
+                print(remote_file_path)
+                with smbclient.open_file(remote_file_path, mode="wb") as remote_f:
+                    torch.save(model.state_dict(), remote_f)
+                
+                return f"✅ Model saved to file server: {remote_path}"
         except Exception as e:
-            print(f"[INFO]: Could not establish connection to file server because:\n{traceback.print_exc()}")
+            print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
         # Save locally if all else fails
         model_dir = os.path.join("./local-saves",self.save_folder,"weights")
@@ -104,27 +104,28 @@ class ModelTransporter:
         # Check if file server is available
     
         try:
-            print("[INFO]: File server is available!")
-            smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
-            print("[SUCCESS]: File server is accessible!")
+            if self.__is_file_server_available(FILE_SERVER_IP):
+                print("[INFO]: File server is available!")
+                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                print("[SUCCESS]: File server is accessible!")
 
-            remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", save_path)
-            
-            smbclient.makedirs(remote_path, exist_ok=True)
-            
-            allfiles = os.listdir(str(metrics_path))
-            for file in allfiles:
-                if os.path.isdir(os.path.join(str(metrics_path),file)):
-                    continue
-                f = os.path.join(str(metrics_path),file)
-                with open(f, "rb") as src:
-                    remote_file_path = os.path.join(remote_path, file)
-                    with smbclient.open_file(remote_file_path, mode="wb") as dest:
-                        shutil.copyfileobj(src, dest)
-                            
-            return f"✅ Metrics saved to file server: {remote_path}"
+                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", save_path)
+                
+                smbclient.makedirs(remote_path, exist_ok=True)
+                
+                allfiles = os.listdir(str(metrics_path))
+                for file in allfiles:
+                    if os.path.isdir(os.path.join(str(metrics_path),file)):
+                        continue
+                    f = os.path.join(str(metrics_path),file)
+                    with open(f, "rb") as src:
+                        remote_file_path = os.path.join(remote_path, file)
+                        with smbclient.open_file(remote_file_path, mode="wb") as dest:
+                            shutil.copyfileobj(src, dest)
+                                
+                return f"✅ Metrics saved to file server: {remote_path}"
         except Exception as e:
-            print(f"[INFO]: Could not establish connection to file server because:\n{traceback.print_exc()}")
+            print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
         # Save locally if all else fails
         save_path = os.path.join("./local-saves/", save_path)

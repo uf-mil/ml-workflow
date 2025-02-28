@@ -1,17 +1,11 @@
-import requests
-import shutil
-from tqdm import tqdm
-import json
+import os
+import asyncio
 
 from dotenv import load_dotenv
-import os
-
-from label_studio_sdk.client import LabelStudio
 
 from scheduler import Scheduler
 
 from flask import Flask, request
-import json
 
 load_dotenv()
 
@@ -20,7 +14,7 @@ API_KEY = os.getenv("API_KEY")
 
 app = Flask(__name__)
 
-scheduler = Scheduler()
+scheduler = Scheduler(batch_size=1)
 
 @app.route("/")
 def check_environment():
@@ -39,15 +33,18 @@ def check_environment():
 
 @app.route("/update", methods=['POST'])
 def update_made_to_labelstudio():
-    data = json(request.data)
-    project_id = data['project']
-    num_annotations = int(data['num_tasks_with_annotations'])
+    data = request.get_json()
+    project_id = data['project']['id']
+    num_annotations = int(data['project']['num_tasks_with_annotations'])
     
     # Receive webhook and update tracking information
     scheduler.project_tasks_dif[project_id] = abs(num_annotations - scheduler.project_finished_tasks_dict[project_id])
     
     # Check to start training
-    scheduler.check_and_train()
+    loop = asyncio.new_event_loop()
+    tasks = [loop.create_task(scheduler.check_and_train())]
+    loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
     
     return {"success": "Called"}, 201
 
