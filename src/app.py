@@ -11,10 +11,11 @@ load_dotenv()
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
+BATCH_SIZE_THRESHOLD = 32
 
 app = Flask(__name__)
 
-scheduler = Scheduler(batch_size=1)
+scheduler = Scheduler(batch_size=BATCH_SIZE_THRESHOLD)
 
 @app.route("/")
 def check_environment():
@@ -39,6 +40,8 @@ def update_made_to_labelstudio():
     
     # Receive webhook and update tracking information
     scheduler.project_tasks_dif[project_id] = abs(num_annotations - scheduler.project_finished_tasks_dict[project_id])
+    
+    print(project_id, num_annotations, scheduler.project_finished_tasks_dict[project_id], scheduler.project_tasks_dif[project_id])
     
     # Check to start training
     loop = asyncio.new_event_loop()

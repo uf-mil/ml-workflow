@@ -311,6 +311,9 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if os.path.exists(base_path):
             shutil.rmtree(base_path)  # Delete the entire project directory
             print(f"\nDeleted project directories at {base_path}")
+        runs_path = f"./logs/runs"
+        if os.path.exists(runs_path):
+            shutil.rmtree(runs_path)
 
     async def train(self, callback = None):
         try:
@@ -333,6 +336,8 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         finally:
             if callback and callable(callback):
                 callback(self.project_id)
+            else:
+                print("[ERROR] Did not call callback")
         
         
         

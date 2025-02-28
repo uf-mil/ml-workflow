@@ -4,7 +4,7 @@ import smbclient.path
 import torch
 import shutil
 import smbclient
-import ipaddress
+import socket
 from pathlib import Path
 
 API_KEY = os.getenv("API_KEY")
@@ -34,7 +34,8 @@ class ModelTransporter:
         
     def __is_file_server_available(self, ip):
         try:
-            ipaddress.ip_address(ip)  # Test SSH port
+            socket.setdefaulttimeout(3)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((FILE_SERVER_IP, 2222))
             return True
         except ValueError:
             return False

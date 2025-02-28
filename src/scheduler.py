@@ -13,7 +13,7 @@ from label_studio_sdk import Client
 
 from trainer import Trainer
 
-MINUTES_TO_WAIT_BEFORE_TRAINING = 0.1
+MINUTES_TO_WAIT_BEFORE_TRAINING = 5
 MINIMUM_ANNOTATIONS_REQUIRED = 20
 
 class Scheduler:
@@ -62,7 +62,7 @@ class Scheduler:
                     writer.writerow([p.id,p.finished_task_number])
                     self.project_finished_tasks_dict[p.id] = p.finished_task_number
             
-    def __del__(self):
+    def __update_csv_memory(self):
         os.remove("project_tasks.csv")
         with open("project_tasks.csv", "w", newline='') as file:
                 writer = csv.writer(file)
@@ -85,23 +85,29 @@ class Scheduler:
             self.__listen_for_more_annotations_and_train(id, trainer)
             return
         else:
-            await trainer.train(callback=lambda id: self.training_set.remove(trainer))
-            self.project_tasks_dif[id] = 0
-            self.project_finished_tasks_dict[id] = last_amount_annotated
+            def callback(id):
+                self.project_tasks_dif[id] = 0
+                self.project_finished_tasks_dict[id] = last_amount_annotated
+                self.training_set.remove(trainer)
+                self.__update_csv_memory()
+
+            await trainer.train(callback=callback)
 
 
     async def check_and_train(self):
         for id, val in self.project_tasks_dif.items():
             if val >= self.batch_size and self.project_finished_tasks_dict[id] > MINIMUM_ANNOTATIONS_REQUIRED: # Condition to set for training
+                print('**',id, val, self.project_finished_tasks_dict[id])
                 if id not in self.training_queue_set:
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
             else:
-                print(val, self.project_finished_tasks_dict[id])
+                print('-', id, val, self.project_finished_tasks_dict[id])
         
         # Place next item in training set and begin training
         if len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
             id = self.training_queue.pop(0)
+            self.training_queue_set.remove(id)
             self.project_to_time_of_threshold_reached[id] = datetime.now()
             trainer = Trainer(id, self.ls, self.ls_client)
             self.training_set.add(trainer)
