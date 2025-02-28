@@ -90,6 +90,7 @@ class Scheduler:
                 self.project_finished_tasks_dict[id] = last_amount_annotated
                 self.training_set.remove(trainer)
                 self.__update_csv_memory()
+                self.check_and_train()
 
             await trainer.train(callback=callback)
 
