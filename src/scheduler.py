@@ -13,11 +13,8 @@ from label_studio_sdk import Client
 
 from trainer import Trainer
 
-MINUTES_TO_WAIT_BEFORE_TRAINING = 5
-MINIMUM_ANNOTATIONS_REQUIRED = 20
-
 class Scheduler:
-    def __init__(self, async_processes_allowed:int=1, batch_size:int = 32):
+    def __init__(self, async_processes_allowed:int=1, batch_size:int = 32, minutes_to_wait_before_training:float=5, minimum_annotations_required:int=20):
         """
         Parameters:
             listen_every (millisecond): sleep period after every call to LabelStudio to get most recent training data.
@@ -36,6 +33,8 @@ class Scheduler:
 
         self.batch_size = batch_size
         self.async_processes_allowed = async_processes_allowed
+        self.minutes_to_wait_before_training = minutes_to_wait_before_training
+        self.minimum_annotations_required = minimum_annotations_required
         
         self.project_finished_tasks_dict = {}
         self.project_tasks_dif = {}
@@ -78,26 +77,26 @@ class Scheduler:
         last_amount_annotated = self.project_finished_tasks_dict[id]
 
         # Wait 5-minutes before checking if the number of annotations has increased
-        await asyncio.sleep(MINUTES_TO_WAIT_BEFORE_TRAINING*60)
+        await asyncio.sleep(self.minutes_to_wait_before_training*60)
 
         # Start training if the number of annotations is the same
         if self.project_finished_tasks_dict[id] > last_amount_annotated:
             self.__listen_for_more_annotations_and_train(id, trainer)
             return
         else:
-            def callback(id):
+            async def callback(id):
                 self.project_tasks_dif[id] = 0
                 self.project_finished_tasks_dict[id] = last_amount_annotated
                 self.training_set.remove(trainer)
                 self.__update_csv_memory()
-                self.check_and_train()
+                await self.check_and_train()
 
             await trainer.train(callback=callback)
 
 
     async def check_and_train(self):
         for id, val in self.project_tasks_dif.items():
-            if val >= self.batch_size and self.project_finished_tasks_dict[id] > MINIMUM_ANNOTATIONS_REQUIRED: # Condition to set for training
+            if val >= self.batch_size and self.project_finished_tasks_dict[id] > self.minimum_annotations_required: # Condition to set for training
                 print('**',id, val, self.project_finished_tasks_dict[id])
                 if id not in self.training_queue_set:
                     self.training_queue.append(id)
@@ -105,11 +104,19 @@ class Scheduler:
             else:
                 print('-', id, val, self.project_finished_tasks_dict[id])
         
+        print(self.training_queue_set)
+        print(self.training_set)
+        
         # Place next item in training set and begin training
         if len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
-            id = self.training_queue.pop(0)
-            self.training_queue_set.remove(id)
-            self.project_to_time_of_threshold_reached[id] = datetime.now()
-            trainer = Trainer(id, self.ls, self.ls_client)
-            self.training_set.add(trainer)
-            await self.__listen_for_more_annotations_and_train(id=id, trainer=trainer)
+            while len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
+                id = self.training_queue.pop(0)
+                self.training_queue_set.remove(id)
+                self.project_to_time_of_threshold_reached[id] = datetime.now()
+                trainer = Trainer(id, self.ls, self.ls_client)
+                self.training_set.add(trainer)
+            for trainer in self.training_set:
+                if not trainer.is_active:
+                    await self.__listen_for_more_annotations_and_train(id=trainer.project_id, trainer=trainer)
+        else:
+            return

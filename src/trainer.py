@@ -43,6 +43,8 @@ class Trainer:
         self.model = YOLO("./models/yolo11n.pt")
         self.save_folder = f"project_{project_id}"
 
+        self.is_active = False
+
         try:
             os.makedirs(f"./gym/project_{project_id}/images/train",exist_ok=True)
             os.makedirs(f"./gym/project_{project_id}/images/test",exist_ok=True)
@@ -316,6 +318,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             shutil.rmtree(runs_path)
 
     async def train(self, callback = None):
+        self.is_active = True
         try:
             print("[INFO]: Creating yaml file for training")
             self.create_yaml()
@@ -335,7 +338,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return
         finally:
             if callback and callable(callback):
-                callback(self.project_id)
+                await callback(self.project_id)
             else:
                 print("[ERROR] Did not call callback")
         

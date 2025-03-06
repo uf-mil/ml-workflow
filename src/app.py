@@ -11,11 +11,19 @@ load_dotenv()
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
-BATCH_SIZE_THRESHOLD = 32
+
+# Scheduler settings
+ASYNC_PROCESSES_ALLOWED = 2
+BATCH_SIZE_THRESHOLD = 1
+MINUTES_TO_WAIT_BEFORE_TRAINING = 0.1
+MINIMUM_ANNOTATIONS_REQUIRED = 20
 
 app = Flask(__name__)
 
-scheduler = Scheduler(batch_size=BATCH_SIZE_THRESHOLD)
+scheduler = Scheduler(batch_size=BATCH_SIZE_THRESHOLD,
+                      async_processes_allowed=ASYNC_PROCESSES_ALLOWED,
+                      minutes_to_wait_before_training=MINUTES_TO_WAIT_BEFORE_TRAINING,
+                      minimum_annotations_required=MINIMUM_ANNOTATIONS_REQUIRED)
 
 @app.route("/")
 def check_environment():
