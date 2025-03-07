@@ -15,7 +15,6 @@ from trainer import Trainer
 
 class Scheduler:
     _instance = None
-    __check_and_train_lock = False
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -54,7 +53,7 @@ class Scheduler:
         
         self.project_finished_tasks_dict = {}
         self.project_tasks_dif = {}
-        self.training_set = set()
+        self.training_dict = {}
         self.training_queue_set = set()
         self.training_queue = []
 
@@ -101,6 +100,7 @@ class Scheduler:
 
         # Start training if the number of annotations is the same
         if self.project_finished_tasks_dict[id] > last_amount_annotated:
+            self.training_dict[id] = self.project_finished_tasks_dict[id]
             self.__listen_for_more_annotations_and_train(id, trainer)
             return
         else:
@@ -110,7 +110,7 @@ class Scheduler:
             async def callback(id):
                 self.project_tasks_dif[id] = 0
                 self.project_finished_tasks_dict[id] = last_amount_annotated
-                self.training_set.remove(id)
+                self.training_dict.pop(id)
                 self.__update_csv_memory()
                 await self.check_and_train()
 
@@ -122,7 +122,8 @@ class Scheduler:
         for id, val in self.project_tasks_dif.items():
             if val >= self.batch_size and self.project_finished_tasks_dict[id] > self.minimum_annotations_required: # Condition to set for training
                 print('**',id, val, self.project_finished_tasks_dict[id])
-                if id not in self.training_queue_set and id not in self.training_set:
+                # Check if id is not already queued or if the id is training only add it back into the queue if a new batch of data one more batch was labeled while it was training
+                if id not in self.training_queue_set and (id not in self.training_dict or val - self.batch_size > self.batch_size):
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
             else:
@@ -130,24 +131,20 @@ class Scheduler:
         
         print(self.training_queue)
         print("Training Q set size: ", len(self.training_queue_set))
-        print("Training set size: ", len(self.training_set))
-
-        # Check lock for reading training queue
-        if self.__check_and_train_lock:
-            return
-        
-        # self.__check_and_train_lock = True
+        print("Training set size: ", len(self.training_dict.keys()))
         
         # Place next item in training set and begin training
-        if len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
+        if len(self.training_dict.keys()) < self.async_processes_allowed and len(self.training_queue) > 0:
             training_tasks = []
             
-            while len(self.training_set) < self.async_processes_allowed and len(self.training_queue) > 0:
-                
-                if id in self.training_set:
+            while len(self.training_dict.keys()) < self.async_processes_allowed and len(self.training_queue) > 0:
+                id = self.training_queue[0]
+
+                # If project already being trained don't create a trainer for it yet
+                if id in self.training_dict:
                     continue
                 
-                self.training_set.add(id)
+                self.training_dict[id] = self.project_finished_tasks_dict[id]
                 id = self.training_queue.pop(0)
                 self.training_queue_set.remove(id)
                 
@@ -157,5 +154,3 @@ class Scheduler:
             
             await asyncio.gather(*training_tasks)
         
-        # Release check and train lock
-        self.__check_and_train_lock = False

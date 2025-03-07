@@ -55,5 +55,18 @@ height: 100vh;'>
             <ul id="log-list"></ul>
         </div>
     </div>
+
+    <script>
+        function updateNumber() {
+            fetch('/get-data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('number').innerText = data.value;
+                });
+        }
+
+        // Auto-update every 5 seconds
+        setInterval(updateNumber, 5000);
+    </script>
 </body>
 </html>
