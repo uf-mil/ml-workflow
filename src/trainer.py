@@ -298,7 +298,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 patience = 10,
                 batch = -1,
                 device = "cuda" if torch.cuda.is_available() else "cpu",
-                project = cwd + "/logs/runs/"
+                project = cwd + f"/gym/project_{self.project_id}/runs"
             )
             # Save the model to some location
             storing_output = self.__store_model(results.save_dir)
@@ -313,9 +313,6 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if os.path.exists(base_path):
             shutil.rmtree(base_path)  # Delete the entire project directory
             print(f"\nDeleted project directories at {base_path}")
-        runs_path = f"./logs/runs"
-        if os.path.exists(runs_path):
-            shutil.rmtree(runs_path)
 
     async def train(self, callback = None):
         self.is_active = True

@@ -13,9 +13,9 @@ LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
 
 # Scheduler settings
-ASYNC_PROCESSES_ALLOWED = 2
+ASYNC_PROCESSES_ALLOWED = 1
 BATCH_SIZE_THRESHOLD = 1
-MINUTES_TO_WAIT_BEFORE_TRAINING = 0.1
+MINUTES_TO_WAIT_BEFORE_TRAINING = 5
 MINIMUM_ANNOTATIONS_REQUIRED = 20
 
 app = Flask(__name__)
@@ -41,7 +41,7 @@ def check_environment():
         return html_string
 
 @app.route("/update", methods=['POST'])
-def update_made_to_labelstudio():
+async def update_made_to_labelstudio():
     data = request.get_json()
     project_id = data['project']['id']
     num_annotations = int(data['project']['num_tasks_with_annotations'])
@@ -52,10 +52,9 @@ def update_made_to_labelstudio():
     print(project_id, num_annotations, scheduler.project_finished_tasks_dict[project_id], scheduler.project_tasks_dif[project_id])
     
     # Check to start training
-    loop = asyncio.new_event_loop()
-    tasks = [loop.create_task(scheduler.check_and_train())]
-    loop.run_until_complete(asyncio.wait(tasks))
-    loop.close()
+    await scheduler.check_and_train()
+
+    print("NUMBER OF TRAIN CALLS MADE: ", scheduler.train_calls)
     
     return {"success": "Called"}, 201
 
