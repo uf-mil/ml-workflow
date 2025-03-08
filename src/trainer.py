@@ -14,7 +14,7 @@ from ultralytics import YOLO
 from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
-from src.transporter import ModelTransporter
+from transporter import ModelTransporter
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
@@ -42,6 +42,8 @@ class Trainer:
 
         self.model = YOLO("./models/yolo11n.pt")
         self.save_folder = f"project_{project_id}"
+
+        self.is_active = False
 
         try:
             os.makedirs(f"./gym/project_{project_id}/images/train",exist_ok=True)
@@ -94,10 +96,12 @@ class Trainer:
         
         def save_img_label_pair(i, task, group_type):
             img_url = task['data']['image']
-            annotations = task['annotations'][0]['result']
+            annotations = task['annotations']
             
             if not annotations:
                 return
+            
+            annotations = annotations[0]['result']
             
             img_filename = f"{i}.jpg"
             img_path = os.path.join(f"./gym/project_{self.project_id}/images/{group_type}", img_filename)
@@ -107,8 +111,9 @@ class Trainer:
             with open(label_path, "w") as f:
                 yolo_data = convert_to_yolo(annotations)
                 f.writelines(yolo_data)
-
+            
         def split_list(data, train_ratio=0.8, test_ratio=0.1, val_ratio=0.1, seed=None):
+            print("[INFO]: Splitting tasks into train/test/val sets.")
             if not (0 <= train_ratio <= 1 and 0 <= test_ratio <= 1 and 0 <= val_ratio <= 1):
                 raise ValueError("Ratios must be between 0 and 1")
             if abs((train_ratio + test_ratio + val_ratio) - 1.0) > 1e-6:
@@ -142,7 +147,7 @@ class Trainer:
         
         for i, task in enumerate(tqdm(test)):
             save_img_label_pair(i, task, 'test')
-        
+              
         for i, task in enumerate(tqdm(val)):
             save_img_label_pair(i, task, 'val')
     
@@ -292,7 +297,8 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 epochs = 1,
                 patience = 10,
                 batch = -1,
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+                device = "cuda" if torch.cuda.is_available() else "cpu",
+                project = cwd + f"/gym/project_{self.project_id}/runs"
             )
             # Save the model to some location
             storing_output = self.__store_model(results.save_dir)
@@ -309,6 +315,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             print(f"\nDeleted project directories at {base_path}")
 
     async def train(self, callback = None):
+        self.is_active = True
         try:
             print("[INFO]: Creating yaml file for training")
             self.create_yaml()
@@ -324,10 +331,13 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             self.__leave_gym()
         except Exception as e:
             print(f"[ERROR]: {e}")
+            print(traceback.print_exc())
             return
         finally:
             if callback and callable(callback):
-                callback(self.project_id)
+                await callback(self.project_id)
+            else:
+                print("[ERROR] Did not call callback")
         
         
         

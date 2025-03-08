@@ -1,7 +1,10 @@
 venv/
+logs/runs/
+local-saves/*
 .pytest_cache/
 __pycache__/
 *.env
 *.pt
 logs/*.txt
 gym/*/
+project_tasks.csv

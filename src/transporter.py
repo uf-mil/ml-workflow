@@ -1,11 +1,10 @@
 import os
 import glob
-import socket
 import smbclient.path
 import torch
 import shutil
 import smbclient
-import traceback
+import socket
 from pathlib import Path
 
 API_KEY = os.getenv("API_KEY")
@@ -22,7 +21,7 @@ class ModelTransporter:
     def __init__(self, save_folder):
         self.save_folder = save_folder
 
-    def __scan_for_available_usb_device(self):
+    def scan_for_available_usb_device(self):
         usb_mount_points = glob.glob("/media/*/*")
         for mount in usb_mount_points:
             key_file_path = os.path.join(mount, USB_KEY_FILENAME)
@@ -33,11 +32,12 @@ class ModelTransporter:
                     return mount  # Return the first valid USB mount point
         return None
         
-    def __is_file_server_available(self, ip):
+    def is_file_server_available(self):
         try:
-            socket.create_connection((ip, 2222), timeout=2)  # Test SSH port
+            socket.setdefaulttimeout(3)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((FILE_SERVER_IP, 2222))
             return True
-        except (socket.timeout, socket.error):
+        except Exception as e:
             return False
     
     def save_model(self, model, weights_name)->str:
@@ -45,7 +45,7 @@ class ModelTransporter:
         model_dir = os.path.join(self.save_folder, "weights")
 
         # Check for USB device
-        usb_drive = self.__scan_for_available_usb_device()
+        usb_drive = self.scan_for_available_usb_device()
         if usb_drive:
             usb_path = os.path.join(usb_drive,"ml-workflow", model_dir)
             os.makedirs(usb_path, exist_ok=True)
@@ -55,23 +55,24 @@ class ModelTransporter:
 
         # Check if file server is available
         try:
-            print("[INFO]: File server is available!")
-            smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
-            print("[SUCCESS]: File server is accessible!")
+            if self.is_file_server_available():
+                print("[INFO]: File server is available!")
+                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                print("[SUCCESS]: File server is accessible!")
 
-            remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", model_dir)
-            
-            smbclient.makedirs(remote_path, exist_ok=True)
+                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", model_dir)
+                
+                smbclient.makedirs(remote_path, exist_ok=True)
 
-            remote_file_path = os.path.join(remote_path, weights_name)
+                remote_file_path = os.path.join(remote_path, weights_name)
 
-            print(remote_file_path)
-            with smbclient.open_file(remote_file_path, mode="wb") as remote_f:
-                torch.save(model.state_dict(), remote_f)
-            
-            return f"✅ Model saved to file server: {remote_path}"
+                print(remote_file_path)
+                with smbclient.open_file(remote_file_path, mode="wb") as remote_f:
+                    torch.save(model.state_dict(), remote_f)
+                
+                return f"✅ Model saved to file server: {remote_path}"
         except Exception as e:
-            print(f"[INFO]: Could not establish connection to file server because:\n{traceback.print_exc()}")
+            print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
         # Save locally if all else fails
         model_dir = os.path.join("./local-saves",self.save_folder,"weights")
@@ -89,7 +90,7 @@ class ModelTransporter:
             
         
         # Check for USB device
-        usb_drive = self.__scan_for_available_usb_device()
+        usb_drive = self.scan_for_available_usb_device()
         if usb_drive:
             usb_path = os.path.join(usb_drive,"ml-workflow", save_path)
             os.makedirs(usb_path, exist_ok=True)
@@ -104,27 +105,28 @@ class ModelTransporter:
         # Check if file server is available
     
         try:
-            print("[INFO]: File server is available!")
-            smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
-            print("[SUCCESS]: File server is accessible!")
+            if self.__is_file_server_available(FILE_SERVER_IP):
+                print("[INFO]: File server is available!")
+                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                print("[SUCCESS]: File server is accessible!")
 
-            remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", save_path)
-            
-            smbclient.makedirs(remote_path, exist_ok=True)
-            
-            allfiles = os.listdir(str(metrics_path))
-            for file in allfiles:
-                if os.path.isdir(os.path.join(str(metrics_path),file)):
-                    continue
-                f = os.path.join(str(metrics_path),file)
-                with open(f, "rb") as src:
-                    remote_file_path = os.path.join(remote_path, file)
-                    with smbclient.open_file(remote_file_path, mode="wb") as dest:
-                        shutil.copyfileobj(src, dest)
-                            
-            return f"✅ Metrics saved to file server: {remote_path}"
+                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", save_path)
+                
+                smbclient.makedirs(remote_path, exist_ok=True)
+                
+                allfiles = os.listdir(str(metrics_path))
+                for file in allfiles:
+                    if os.path.isdir(os.path.join(str(metrics_path),file)):
+                        continue
+                    f = os.path.join(str(metrics_path),file)
+                    with open(f, "rb") as src:
+                        remote_file_path = os.path.join(remote_path, file)
+                        with smbclient.open_file(remote_file_path, mode="wb") as dest:
+                            shutil.copyfileobj(src, dest)
+                                
+                return f"✅ Metrics saved to file server: {remote_path}"
         except Exception as e:
-            print(f"[INFO]: Could not establish connection to file server because:\n{traceback.print_exc()}")
+            print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
         # Save locally if all else fails
         save_path = os.path.join("./local-saves/", save_path)

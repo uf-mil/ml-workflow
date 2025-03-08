@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Python Service Monitor</title>
     <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -18,42 +29,186 @@
             border-radius: 16px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .box-content {
             overflow: auto;
+            flex: 1;
         }
         h2 {
             margin: 0;
             font-size: 18px;
             padding-bottom: 10px;
             border-bottom: 2px solid #ddd;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }
         .full-width {
             grid-column: span 2;
         }
+        .draggable {
+            cursor: grab;
+            padding: 8px;
+            background: #eee;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .available {
+            background-color: green;
+        }
+        .unavailable {
+            background-color: red;
+        }
+        .project-item {
+            padding: 12px;
+            background: #eee;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-direction: column;
+        }
+        .project-title {
+            font-weight: bold;
+        }
+        .project-stats {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .project-state {
+            font-weight: bold;
+        }
+        .state-3 { color: green; }
+        .state-2 { color: yellow; }
+        .state-1 { color: blue; }
+        .state-0 { color: gray; }
+        .log-item {
+            background: #eee;
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        .log-item-content {
+            display: none;
+            background: #ddd;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
     </style>
 </head>
-<body style='
-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-margin: 0;
-padding: 0;
-background-color: #f5f5f7;
-color: #1d1d1f;
-display: flex;
-justify-content: center;
-align-items: center;
-height: 100vh;'>
+<body>
     <div class="container">
         <div class="box" id="storage-devices">
             <h2>Available Storage Devices</h2>
-            <ul id="devices-list"></ul>
+            <div class="box-content">
+                <ul id="devices-list"></ul>
+            </div>
         </div>
         <div class="box" id="monitored-projects">
             <h2>Monitored Projects</h2>
-            <ul id="projects-list"></ul>
+            <div class="box-content">
+                <ul id="projects-list"></ul>
+            </div>
         </div>
         <div class="box full-width" id="log">
             <h2>Service Log</h2>
-            <ul id="log-list"></ul>
+            <div class="box-content">
+                <ul id="log-list"></ul>
+            </div>
         </div>
     </div>
+
+    <script>
+        function fetchData() {
+            fetch('/get-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateDevicesList(data.devices);
+                    updateProjectsList(data.projects);
+                    updateLogList(data.logs);
+                });
+        }
+
+        function updateDevicesList(devices) {
+            const list = document.getElementById('devices-list');
+            list.innerHTML = '';
+            devices.sort((a, b) => a.priority - b.priority);
+            devices.forEach(device => {
+                const item = document.createElement('li');
+                item.className = 'draggable';
+                item.draggable = true;
+                item.innerHTML = `${device.name} (Priority: ${device.priority}) <span class="status-indicator ${device.available ? 'available' : 'unavailable'}"></span>`;
+                list.appendChild(item);
+            });
+        }
+
+        function updateProjectsList(projects) {
+            const list = document.getElementById('projects-list');
+            list.innerHTML = '';
+            projects.sort((a, b) => b.state - a.state || b.id - a.id);
+            projects.forEach(project => {
+                const item = document.createElement('li');
+                item.className = 'project-item';
+                item.innerHTML = `
+                    <div class="project-title">${project.title} (ID: ${project.id})</div>
+                    <div class="project-stats">
+                        <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
+                        <div class="project-state state-${project.state}">
+                            ${project.state === 3 ? 'TRAINING' : project.state === 2 ? 'IN-QUEUE' : project.state === 1 ? 'TRACKED' : 'NOT TRACKED'}
+                        </div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function updateLogList(logs) {
+            const list = document.getElementById('log-list');
+            list.innerHTML = '';
+            logs.sort();
+            logs.forEach(log => {
+                const item = document.createElement('li');
+                item.className = 'log-item';
+                item.textContent = log.name;
+                item.onclick = () => fetchLogContent(log.name, item);
+                list.appendChild(item);
+            });
+        }
+
+        function fetchLogContent(logName, element) {
+            fetch(`/get-log-content?name=${logName}`)
+                .then(response => response.json())
+                .then(data => {
+                    let content = element.querySelector('.log-content');
+                    if (!content) {
+                        content = document.createElement('div');
+                        content.className = 'log-content';
+                        element.appendChild(content);
+                    }
+                    content.innerHTML = data.content;
+                    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+                });
+        }
+
+        setInterval(fetchData, 5000);
+    </script>
 </body>
 </html>
