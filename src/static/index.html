@@ -12,6 +12,7 @@
             background-color: #f5f5f7;
             color: #1d1d1f;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -83,6 +84,10 @@
         }
         .project-title {
             font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
         }
         .project-stats {
             display: flex;
@@ -115,6 +120,9 @@
     </style>
 </head>
 <body>
+    <div style="width: 80vw; display: flex; align-items: flex-start;">
+        <h1>MIL Autotrainer</h1>
+    </div>
     <div class="container">
         <div class="box" id="storage-devices">
             <h2>Available Storage Devices</h2>
@@ -168,7 +176,10 @@
                 const item = document.createElement('li');
                 item.className = 'project-item';
                 item.innerHTML = `
-                    <div class="project-title">${project.title} (ID: ${project.id})</div>
+                    <div class="project-title">
+                        <div>${project.title}</div>
+                        <div>${project.id}</div>
+                    </div>
                     <div class="project-stats">
                         <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
                         <div class="project-state state-${project.state}">
