@@ -21,7 +21,7 @@ class ModelTransporter:
     def __init__(self, save_folder):
         self.save_folder = save_folder
 
-    def __scan_for_available_usb_device(self):
+    def scan_for_available_usb_device(self):
         usb_mount_points = glob.glob("/media/*/*")
         for mount in usb_mount_points:
             key_file_path = os.path.join(mount, USB_KEY_FILENAME)
@@ -32,12 +32,12 @@ class ModelTransporter:
                     return mount  # Return the first valid USB mount point
         return None
         
-    def __is_file_server_available(self, ip):
+    def is_file_server_available(self):
         try:
             socket.setdefaulttimeout(3)
             socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((FILE_SERVER_IP, 2222))
             return True
-        except ValueError:
+        except Exception as e:
             return False
     
     def save_model(self, model, weights_name)->str:
@@ -45,7 +45,7 @@ class ModelTransporter:
         model_dir = os.path.join(self.save_folder, "weights")
 
         # Check for USB device
-        usb_drive = self.__scan_for_available_usb_device()
+        usb_drive = self.scan_for_available_usb_device()
         if usb_drive:
             usb_path = os.path.join(usb_drive,"ml-workflow", model_dir)
             os.makedirs(usb_path, exist_ok=True)
@@ -55,7 +55,7 @@ class ModelTransporter:
 
         # Check if file server is available
         try:
-            if self.__is_file_server_available(FILE_SERVER_IP):
+            if self.is_file_server_available():
                 print("[INFO]: File server is available!")
                 smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
                 print("[SUCCESS]: File server is accessible!")
@@ -90,7 +90,7 @@ class ModelTransporter:
             
         
         # Check for USB device
-        usb_drive = self.__scan_for_available_usb_device()
+        usb_drive = self.scan_for_available_usb_device()
         if usb_drive:
             usb_path = os.path.join(usb_drive,"ml-workflow", save_path)
             os.makedirs(usb_path, exist_ok=True)
