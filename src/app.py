@@ -47,13 +47,51 @@ def project_overview(project_id):
         "total_tasks": project['total_tasks'],
         "project_status": 3 if project_id in SCHEDULER.training_dict else 
                             2 if project_id in SCHEDULER.training_queue_set else 
-                            1 if project["tracked"] == 'True' else 
+                            1 if project["tracked"] == True else 
                             0,
         "collected_data": "Here’s some collected data about the project...",
         "project_metadata": "This is the project's metadata..."
     }
 
     return render_template("project.html", **project_data)
+
+@app.route("/link-<project_id>")
+def link_project(project_id):
+    try:
+        SCHEDULER.ls.webhooks.create(
+            url=f'{request.url_root}update',
+            project=int(project_id),
+            send_payload=True,
+            send_for_all_actions=False,
+            actions=[
+                'ANNOTATION_CREATED',
+                'ANNOTATIONS_DELETED',
+                'ANNOTATIONS_CREATED',
+                'ANNOTATIONS_DELETED',
+                'PROJECT_UPDATED'
+            ]
+        )
+        SCHEDULER.projects[int(project_id)]['tracked'] = True
+        SCHEDULER.update_csv_memory()
+        return jsonify({"message": "Link made successfully!"}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"error": f"Error creating linking: {str(e)}"}), 500
+
+@app.route("/unlink-<project_id>")
+def unlink_project(project_id):
+    try:
+        webhooks = SCHEDULER.ls.webhooks.list()
+        for wh in webhooks:
+            if wh.project == project_id:
+                SCHEDULER.ls.webhooks.delete(wh.id)
+        
+        SCHEDULER.projects[int(project_id)]['tracked'] = False
+        SCHEDULER.update_csv_memory()
+        return jsonify({"message": "Link broken successfully!"}), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"error": f"Error breaking linking: {str(e)}"}), 500
 
 @app.route('/update-settings', methods=['POST'])
 def update_settings():
@@ -80,7 +118,6 @@ def update_settings():
         SERVICE.batch_size_threshold = settings['BATCH_SIZE_THRESHOLD']
         SERVICE.minutes_to_wait_for_next_annotation = settings['MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION'] 
         SERVICE.minimum_annotations_required = settings['MINIMUM_ANNOTATIONS_REQUIRED']
-
 
         return jsonify({"message": "Settings updated successfully!"}), 200
     except Exception as e:
@@ -114,7 +151,7 @@ def get_data():
         'task_number': values["total_tasks"],
         'state':3 if id in SCHEDULER.training_dict else 
                 2 if id in SCHEDULER.training_queue_set else 
-                1 if values["tracked"] == 'True' else 
+                1 if values["tracked"] == True else 
                 0
     } for id, values in SCHEDULER.projects.items()]
 

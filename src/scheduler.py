@@ -68,7 +68,7 @@ class Scheduler:
                     self.projects[int(row["id"])] = {
                         'finished_tasks': row["finished_tasks"],
                         'total_tasks': row["total_tasks"],
-                        'tracked': row["tracked"],
+                        'tracked': row["tracked"] == 'True',
                         'title': row["title"],
                         'date_time_last_trained': row["date_time_last_trained"],
                         'training_duration': row["training_duration"],
@@ -103,16 +103,33 @@ class Scheduler:
 
                     writer.writerow(project_data)
             
-    def __update_csv_memory(self):
+    def update_csv_memory(self):
         os.remove("project_tasks.csv")
         with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["id","finished_tasks"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","class_acc_string","latest_report"])
+                writer.writeheader()
 
-                projects = self.ls.projects
-                for p in projects.list():
-                    writer.writerow([p.id,p.finished_task_number])
-                    self.project_finished_tasks_dict[p.id] = p.finished_task_number
+                projects = self.ls.projects.list()
+                webhooks_set = set([webhook.project for webhook in self.ls.webhooks.list()])
+                
+                for project in projects:
+                    # Extracting available project data
+                    local_project = self.projects[project.id]
+                    project_data = {
+                        'id': project.id,
+                        'finished_tasks': project.num_tasks_with_annotations,
+                        'total_tasks': project.task_number,
+                        'tracked': project.id in webhooks_set,
+                        'title': project.title,
+                        'date_time_last_trained': local_project['date_time_last_trained'],
+                        'training_duration': local_project['training_duration'],
+                        'epochs': local_project['epochs'],
+                        'locations_saved': local_project['locations_saved'],
+                        'class_acc_string': local_project['class_acc_string'],
+                        'latest_report': local_project['latest_report']
+                    }
+
+                    writer.writerow(project_data)
     
     async def __listen_for_more_annotations_and_train(self, id, trainer:Trainer):
         # Store last amount of annotations made
@@ -138,7 +155,7 @@ class Scheduler:
                 self.project_tasks_dif[id] = 0
                 self.project_finished_tasks_dict[id] = last_amount_annotated
                 self.training_dict.pop(id)
-                self.__update_csv_memory()
+                self.update_csv_memory()
                 await self.check_and_train()
 
             self.train_calls += 1

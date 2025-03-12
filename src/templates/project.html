@@ -70,7 +70,7 @@
             <p style="font-weight: bold; color: #696969; padding-bottom: 15px;">{{ project_id }}</p>
             <h1>{{ project_name }}</h1>
             <h2>{{ num_annotations }} / {{ total_tasks }}</h2>
-            <h2 class="project-state state-{{ project_status }}">
+            <h2 id="project_status" class="project-state state-{{ project_status }}">
                 {% if project_status == 3 %}
                     TRAINING
                 {% elif project_status == 2 %}
@@ -87,8 +87,8 @@
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
         <button onclick="handleAction('${project.id}', 'play')">🏃 Train</button>
         <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
-        <button onclick="handleAction('${project.id}', 'link')">🔗 Link</button>
-        <button onclick="handleAction('${project.id}', 'break')">✂️ Break Link</button>
+        <button onclick="linkProject('{{ project_id }}')">🔗 Link</button>
+        <button onclick="unlinkProject('{{ project_id }}')">✂️ Break Link</button>
     </div>
     <div class="content">
         <div class="block">
@@ -100,5 +100,36 @@
             <p>{{ project_metadata }}</p>
         </div>
     </div>
+
+    <script>
+        function linkProject(project_id)
+        {
+            fetch(`/link-${project_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const item = document.getElementById('project_status')
+                    item.className = "project-state state-1"
+                    item.innerHTML = 'TRACKED'
+                })
+        }
+
+        function unlinkProject(project_id)
+        {
+            fetch(`/unlink-${project_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const item = document.getElementById('project_status')
+                    item.className = "project-state state-0"
+                    item.innerHTML = 'NOT TRACKED'
+                })
+        }
+
+        function handleAction(projectId, action) {
+            alert(`Action: ${action} on project ${projectId}`);
+            const menu = document.getElementById(`action-menu-${projectId}`);
+            menu.style.display = 'none';
+        }
+
+    </script>
 </body>
 </html>
