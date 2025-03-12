@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Python Service Monitor</title>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+    <title>MIL Autotrainer</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -82,12 +83,36 @@
             align-items: flex-start;
             flex-direction: column;
         }
+        .project-item:hover {
+            background-color: #e0e0e0;
+        }
         .project-title {
             font-weight: bold;
             margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             width: 100%;
+        }
+        .action-menu {
+            display: none;
+            position: relative;
+            background: #ffffff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            padding: 10px;
+            margin-top: 20px;
+            flex-direction: row;
+            justify-content: space-around;
+            width: '100%';
+        }
+        .action-menu button {
+            background: none;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .action-menu button:hover {
+            background-color: #f0f0f0;
         }
         .project-stats {
             display: flex;
@@ -99,7 +124,7 @@
         }
         .state-3 { color: green; }
         .state-2 { color: yellow; }
-        .state-1 { color: blue; }
+        .state-1 { color: rgb(0, 119, 255); }
         .state-0 { color: gray; }
         .log-item {
             background: #eee;
@@ -117,11 +142,36 @@
             list-style: none;
             padding: 0;
         }
+        
+        .settings-button {
+            background-color: #ffffff;
+            border: none;
+            border-radius: 20px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #070707;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .settings-button:hover {
+            background-color: #171717;
+            color: #ffffff;
+        }
+
+        .settings-button:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body>
-    <div style="width: 80vw; display: flex; align-items: flex-start;">
-        <h1>MIL Autotrainer</h1>
+    <div style="width: 80vw; display: flex; align-items: flex-start; justify-content: space-between;">
+        <h1> MIL Autotrainer</h1>
+        <div style="display: flex; flex-direction: row; align-items: center;">
+            <button class="settings-button" onclick="goToSettings()">⚙️ Settings</button>
+        </div>
     </div>
     <div class="container">
         <div class="box" id="storage-devices">
@@ -145,13 +195,24 @@
     </div>
 
     <script>
+        let once = true;
+
+        function goToSettings() {
+            window.location.href = '/settings';
+        }
+
         function fetchData() {
             fetch('/get-data')
                 .then(response => response.json())
                 .then(data => {
                     updateDevicesList(data.devices);
-                    updateProjectsList(data.projects);
-                    updateLogList(data.logs);
+                    if (once)
+                    {
+                        updateProjectsList(data.projects);
+                        updateLogList(data.logs);
+                        once = false
+                    }
+                        
                 });
         }
 
@@ -175,15 +236,24 @@
             projects.forEach(project => {
                 const item = document.createElement('li');
                 item.className = 'project-item';
+                item.id = project.id
                 item.innerHTML = `
-                    <div class="project-title">
-                        <div>${project.title}</div>
-                        <div>${project.id}</div>
-                    </div>
-                    <div class="project-stats">
-                        <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
-                        <div class="project-state state-${project.state}">
-                            ${project.state === 3 ? 'TRAINING' : project.state === 2 ? 'IN-QUEUE' : project.state === 1 ? 'TRACKED' : 'NOT TRACKED'}
+                    <div style='width:100%' onclick="handleProjectClick(event, '${project.id}')">
+                        <div class="project-title">
+                            <div>${project.title}</div>
+                            <div>${project.id}</div>
+                        </div>
+                        <div class="project-stats">
+                            <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
+                            <div class="project-state state-${project.state}">
+                                ${project.state === 3 ? 'TRAINING' : project.state === 2 ? 'IN-QUEUE' : project.state === 1 ? 'TRACKED' : 'NOT TRACKED'}
+                            </div>
+                        </div>
+                        <div id="action-menu-${project.id}" class="action-menu">
+                            <button onclick="handleAction('${project.id}', 'play')">🏃 Train</button>
+                            <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
+                            <button onclick="handleAction('${project.id}', 'link')">🔗 Link</button>
+                            <button onclick="handleAction('${project.id}', 'break')">✂️ Break Link</button>
                         </div>
                     </div>
                 `;
@@ -215,11 +285,40 @@
                         element.appendChild(content);
                     }
                     content.innerHTML = data.content;
-                    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+                    content.style.display = content.style.display === 'flex' ? 'none' : 'flex';
                 });
         }
 
-        setInterval(fetchData, 5000);
+        let clicked_project = null;
+
+        function handleProjectClick(event, projectId) {
+            if (clicked_project == projectId) {
+                clickTimeout = null;
+                window.location.href = `/project-${projectId}`;
+            } else {
+                clicked_project = projectId;
+                const menu = document.getElementById(`action-menu-${projectId}`);
+                menu.style.display = clicked_project && projectId == clicked_project ? 'flex' : 'none';
+            }
+            // collapse other unclicked projects
+            const listItems = document.querySelectorAll('#projects-list li')
+            listItems.forEach(item => {
+                if (item.id != projectId)
+                {
+                    const menu = document.getElementById(`action-menu-${item.id}`);
+                    menu.style.display = 'none'; 
+                }
+            })
+            
+        }
+
+        function handleAction(projectId, action) {
+            alert(`Action: ${action} on project ${projectId}`);
+            const menu = document.getElementById(`action-menu-${projectId}`);
+            menu.style.display = 'none';
+        }
+
+        setInterval(fetchData, 1000);
     </script>
 </body>
 </html>

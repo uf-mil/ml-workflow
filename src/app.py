@@ -1,36 +1,91 @@
 import os
 import asyncio
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 from scheduler import Scheduler
+from service import Service
 from transporter import ModelTransporter
 
-from flask import Flask, request, jsonify
-
-load_dotenv()
-
-LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
-API_KEY = os.getenv("API_KEY")
-
-# Scheduler settings
-ASYNC_PROCESSES_ALLOWED = 3
-BATCH_SIZE_THRESHOLD = 32
-MINUTES_TO_WAIT_BEFORE_TRAINING = 0.1
-MINIMUM_ANNOTATIONS_REQUIRED = 10
+from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-scheduler = Scheduler(batch_size=BATCH_SIZE_THRESHOLD,
-                      async_processes_allowed=ASYNC_PROCESSES_ALLOWED,
-                      minutes_to_wait_before_training=MINUTES_TO_WAIT_BEFORE_TRAINING,
-                      minimum_annotations_required=MINIMUM_ANNOTATIONS_REQUIRED)
+SERVICE = Service()
+SCHEDULER = Scheduler(service=SERVICE)
 
 @app.route("/")
 def check_environment():
-    with open("src/static/index.html", 'r', encoding='utf-8') as file:
+    with open("src/templates/index.html", 'r', encoding='utf-8') as file:
         html_string = file.read()
         return html_string
+
+
+@app.route("/settings")
+def show_settings():
+    return render_template(
+        'settings.html',
+        label_studio_url=SERVICE.label_studio_url,
+        file_server_ip=SERVICE.file_server_ip,
+        file_server_port=SERVICE.file_server_port,
+        file_server_shared_folder=SERVICE.file_server_shared_folder,
+        usb_key_file_name=SERVICE.usb_key_file_name,
+        async_processes_allowed=SERVICE.async_processes_allowed,
+        batch_size_threshold=SERVICE.batch_size_threshold,
+        minutes_to_wait_for_next_annotation=SERVICE.minutes_to_wait_for_next_annotation,
+        minimum_annotations_required=SERVICE.minimum_annotations_required
+    )
+
+@app.route("/project-<project_id>")
+def project_overview(project_id):
+    # Example data, replace with actual data fetching logic
+    project = SCHEDULER.projects[int(project_id)]
+    project_data = {
+        "project_name": project['title'],
+        "project_id": project_id,
+        "num_annotations": project['finished_tasks'],
+        "total_tasks": project['total_tasks'],
+        "project_status": 3 if project_id in SCHEDULER.training_dict else 
+                            2 if project_id in SCHEDULER.training_queue_set else 
+                            1 if project["tracked"] == 'True' else 
+                            0,
+        "collected_data": "Here’s some collected data about the project...",
+        "project_metadata": "This is the project's metadata..."
+    }
+
+    return render_template("project.html", **project_data)
+
+@app.route('/update-settings', methods=['POST'])
+def update_settings():
+    try:
+        settings = request.json
+        env_path = os.path.join(os.getcwd(), 'src', '.env')
+
+        for key, value in settings.items():
+            set_key(env_path, key, str(value))
+        
+        # Configure LabelStudio
+        SERVICE.label_studio_url = settings['LABEL_STUDIO_URL']
+        
+        # Configure file server
+        SERVICE.file_server_ip = settings['FILE_SERVER_IP']
+        SERVICE.file_server_port = settings['FILE_SERVER_PORT']
+        SERVICE.file_server_shared_folder = settings['SHARED_FOLDER']
+
+        # Configure USB device detection
+        SERVICE.usb_key_file_name = settings['USB_KEY_FILENAME']
+
+        # Configure auto training logic
+        SERVICE.async_processes_allowed = settings['ASYNC_PROCESSES_ALLOWED']
+        SERVICE.batch_size_threshold = settings['BATCH_SIZE_THRESHOLD']
+        SERVICE.minutes_to_wait_for_next_annotation = settings['MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION'] 
+        SERVICE.minimum_annotations_required = settings['MINIMUM_ANNOTATIONS_REQUIRED']
+
+
+        return jsonify({"message": "Settings updated successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": f"Error updating settings: {str(e)}"}), 500
+
 
 @app.route("/get-data", methods=['GET'])
 def get_data():
@@ -53,15 +108,15 @@ def get_data():
 
     # Get monitored projects
     projects = [{
-        'title': project.title,
-        'id': project.id,
-        'num_tasks_with_annotations': project.num_tasks_with_annotations,
-        'task_number': project.task_number,
-        'state':3 if project.id in scheduler.training_dict else 
-                2 if project.id in scheduler.training_queue_set else 
-                1 if project.id in scheduler.project_tasks_dif else 
+        'title': values["title"],
+        'id': id,
+        'num_tasks_with_annotations': values["finished_tasks"],
+        'task_number': values["total_tasks"],
+        'state':3 if id in SCHEDULER.training_dict else 
+                2 if id in SCHEDULER.training_queue_set else 
+                1 if values["tracked"] == 'True' else 
                 0
-    } for project in scheduler.ls.projects.list()]
+    } for id, values in SCHEDULER.projects.items()]
 
     # Get logs
     log_files = os.listdir(os.path.join(os.getcwd(),"logs"))
@@ -105,16 +160,17 @@ async def update_made_to_labelstudio():
     num_annotations = int(data['project']['num_tasks_with_annotations'])
     
     # Receive webhook and update tracking information
-    scheduler.project_tasks_dif[project_id] = abs(num_annotations - scheduler.project_finished_tasks_dict[project_id])
+    SCHEDULER.project_tasks_dif[project_id] = abs(num_annotations - SCHEDULER.project_finished_tasks_dict[project_id])
     
-    print(project_id, num_annotations, scheduler.project_finished_tasks_dict[project_id], scheduler.project_tasks_dif[project_id])
+    print(project_id, num_annotations, SCHEDULER.project_finished_tasks_dict[project_id], SCHEDULER.project_tasks_dif[project_id])
     
     # Check to start training
-    await scheduler.check_and_train()
+    await SCHEDULER.check_and_train()
 
-    print("NUMBER OF TRAIN CALLS MADE: ", scheduler.train_calls)
+    print("NUMBER OF TRAIN CALLS MADE: ", SCHEDULER.train_calls)
     
     return {"success": "Called"}, 201
 
 if __name__ == "__main__":
+
     app.run(debug=True)

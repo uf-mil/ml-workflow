@@ -12,6 +12,7 @@ from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
 from trainer import Trainer
+from service import Service
 
 class Scheduler:
     _instance = None
@@ -21,7 +22,7 @@ class Scheduler:
             cls._instance = super(Scheduler, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, async_processes_allowed:int=1, batch_size:int = 32, minutes_to_wait_before_training:float=5, minimum_annotations_required:int=20):
+    def __init__(self, service:Service):
         """
         Parameters:
             listen_every (millisecond): sleep period after every call to LabelStudio to get most recent training data.
@@ -46,11 +47,9 @@ class Scheduler:
         self.ls = LabelStudio(base_url=__LABEL_STUDIO_URL, api_key=__API_KEY)
         self.ls_client = Client(url=__LABEL_STUDIO_URL, api_key=__API_KEY)
 
-        self.batch_size = batch_size
-        self.async_processes_allowed = async_processes_allowed
-        self.minutes_to_wait_before_training = minutes_to_wait_before_training
-        self.minimum_annotations_required = minimum_annotations_required
+        self.service = Service()
         
+        self.projects = {}
         self.project_finished_tasks_dict = {}
         self.project_tasks_dif = {}
         self.training_dict = {}
@@ -65,16 +64,44 @@ class Scheduler:
             with open("project_tasks.csv", 'r') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    self.project_finished_tasks_dict[int(row["id"])] = int(row["finished_tasks"])   
+                    self.project_finished_tasks_dict[int(row["id"])] = int(row["finished_tasks"])  
+                    self.projects[int(row["id"])] = {
+                        'finished_tasks': row["finished_tasks"],
+                        'total_tasks': row["total_tasks"],
+                        'tracked': row["tracked"],
+                        'title': row["title"],
+                        'date_time_last_trained': row["date_time_last_trained"],
+                        'training_duration': row["training_duration"],
+                        'epochs': row["epochs"],
+                        'locations_saved': row["locations_saved"],
+                        'class_acc_string': row["class_acc_string"],
+                        'latest_report': row["latest_report"]
+                    } 
         else: # Load finished_task data from LabelStudio
             with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["id","finished_tasks"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","class_acc_string","latest_report"])
+                writer.writeheader()
 
-                projects = self.ls.projects
-                for p in projects.list():
-                    writer.writerow([p.id,p.finished_task_number])
-                    self.project_finished_tasks_dict[p.id] = p.finished_task_number
+                projects = self.ls.projects.list()
+                webhooks_set = set([webhook.project for webhook in self.ls.webhooks.list()])
+                
+                for project in projects:
+                    # Extracting available project data
+                    project_data = {
+                        'id': project.id,
+                        'finished_tasks': project.num_tasks_with_annotations,
+                        'total_tasks': project.task_number,
+                        'tracked': project.id in webhooks_set,
+                        'title': project.title,
+                        'date_time_last_trained': '',
+                        'training_duration': '',
+                        'epochs': '',
+                        'locations_saved': '',
+                        'class_acc_string': '',
+                        'latest_report': ''
+                    }
+
+                    writer.writerow(project_data)
             
     def __update_csv_memory(self):
         os.remove("project_tasks.csv")
@@ -92,7 +119,7 @@ class Scheduler:
         last_amount_annotated = self.project_finished_tasks_dict[id]
 
         # Wait 5-minutes before checking if the number of annotations has increased
-        await asyncio.sleep(self.minutes_to_wait_before_training*60)
+        await asyncio.sleep(self.service.minutes_to_wait_for_next_annotation*60)
 
         # Check if there is the trainer has already began being trained
         if trainer.is_active:
@@ -120,10 +147,10 @@ class Scheduler:
 
     async def check_and_train(self):
         for id, val in self.project_tasks_dif.items():
-            if val >= self.batch_size and self.project_finished_tasks_dict[id] > self.minimum_annotations_required: # Condition to set for training
+            if val >= self.service.batch_size_threshold and self.project_finished_tasks_dict[id] > self.service.minimum_annotations_required: # Condition to set for training
                 print('**',id, val, self.project_finished_tasks_dict[id])
                 # Check if id is not already queued or if the id is training only add it back into the queue if a new batch of data one more batch was labeled while it was training
-                if id not in self.training_queue_set and (id not in self.training_dict or val - self.batch_size > self.batch_size):
+                if id not in self.training_queue_set and (id not in self.training_dict or val - self.service.batch_size_threshold > self.service.batch_size_threshold):
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
             else:
@@ -134,10 +161,10 @@ class Scheduler:
         print("Training set size: ", len(self.training_dict.keys()))
         
         # Place next item in training set and begin training
-        if len(self.training_dict.keys()) < self.async_processes_allowed and len(self.training_queue) > 0:
+        if len(self.training_dict.keys()) < self.service.async_processes_allowed and len(self.training_queue) > 0:
             training_tasks = []
             
-            while len(self.training_dict.keys()) < self.async_processes_allowed and len(self.training_queue) > 0:
+            while len(self.training_dict.keys()) < self.service.async_processes_allowed and len(self.training_queue) > 0:
                 id = self.training_queue[0]
 
                 # If project already being trained don't create a trainer for it yet

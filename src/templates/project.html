@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Overview</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+        }
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+        button {
+            background-color: #ffffff;
+            color: #070707;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 20px;
+            width: 20vw;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #070707;
+            color: #ffffff;
+        }
+        .project-state {
+            font-weight: bold;
+        }
+        .state-3 { color: green; }
+        .state-2 { color: yellow; }
+        .state-1 { color: rgb(0, 119, 255); }
+        .state-0 { color: gray; }
+        .content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 40px;
+        }
+        .block {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        h2 {
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-info">
+            <p style="font-weight: bold; color: #696969; padding-bottom: 15px;">{{ project_id }}</p>
+            <h1>{{ project_name }}</h1>
+            <h2>{{ num_annotations }} / {{ total_tasks }}</h2>
+            <h2 class="project-state state-{{ project_status }}">
+                {% if project_status == 3 %}
+                    TRAINING
+                {% elif project_status == 2 %}
+                    IN-QUEUE
+                {% elif project_status == 1 %}
+                    TRACKED
+                {% else %}
+                    NOT TRACKED
+                {% endif %}
+            </h2>
+        </div>
+        <button style="width: 120px;" onclick="window.location.href='/'">🏠 Home</button>
+    </header>
+    <div style="display: flex; flex-direction: row; justify-content: space-around;">
+        <button onclick="handleAction('${project.id}', 'play')">🏃 Train</button>
+        <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
+        <button onclick="handleAction('${project.id}', 'link')">🔗 Link</button>
+        <button onclick="handleAction('${project.id}', 'break')">✂️ Break Link</button>
+    </div>
+    <div class="content">
+        <div class="block">
+            <h2>Collected Data</h2>
+            <p>{{ collected_data }}</p>
+        </div>
+        <div class="block">
+            <h2>Project Metadata</h2>
+            <p>{{ project_metadata }}</p>
+        </div>
+    </div>
+</body>
+</html>
