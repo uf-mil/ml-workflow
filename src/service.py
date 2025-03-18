@@ -27,10 +27,13 @@ class Service:
         self.usb_key_file_name = os.getenv('USB_KEY_FILENAME', 'None Found')
 
         # Configure auto training logic
-        self.async_processes_allowed = os.getenv('ASYNC_PROCESSES_ALLOWED', 3)
-        self.batch_size_threshold = os.getenv('BATCH_SIZE_THRESHOLD', 32)
-        self.minutes_to_wait_for_next_annotation = os.getenv('MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION', 5) 
-        self.minimum_annotations_required = os.getenv('MINIMUM_ANNOTATIONS_REQUIRED', 10)
+        self.async_processes_allowed = int(os.getenv('ASYNC_PROCESSES_ALLOWED', 3))
+        self.batch_size_threshold = int(os.getenv('BATCH_SIZE_THRESHOLD', 32))
+        self.minutes_to_wait_for_next_annotation = float(os.getenv('MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION', 5)) 
+        self.minimum_annotations_required = int(os.getenv('MINIMUM_ANNOTATIONS_REQUIRED', 10))
+
+        # Dark mode
+        self.dark_mode = bool(os.getenv('DARK_MODE', False))
 
 
           

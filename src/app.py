@@ -1,5 +1,6 @@
 import os
 import asyncio
+import traceback
 
 from dotenv import load_dotenv, set_key
 
@@ -16,10 +17,10 @@ SCHEDULER = Scheduler(service=SERVICE)
 
 @app.route("/")
 def check_environment():
-    with open("src/templates/index.html", 'r', encoding='utf-8') as file:
-        html_string = file.read()
-        return html_string
-
+    return render_template(
+        'index.html',
+        dark_mode=SERVICE.dark_mode
+    )
 
 @app.route("/settings")
 def show_settings():
@@ -33,7 +34,8 @@ def show_settings():
         async_processes_allowed=SERVICE.async_processes_allowed,
         batch_size_threshold=SERVICE.batch_size_threshold,
         minutes_to_wait_for_next_annotation=SERVICE.minutes_to_wait_for_next_annotation,
-        minimum_annotations_required=SERVICE.minimum_annotations_required
+        minimum_annotations_required=SERVICE.minimum_annotations_required,
+        dark_mode = SERVICE.dark_mode
     )
 
 @app.route("/project-<project_id>")
@@ -50,7 +52,8 @@ def project_overview(project_id):
                             1 if project["tracked"] == True else 
                             0,
         "collected_data": "Here’s some collected data about the project...",
-        "project_metadata": "This is the project's metadata..."
+        "project_metadata": "This is the project's metadata...",
+        "dark_mode":SERVICE.dark_mode
     }
 
     return render_template("project.html", **project_data)
@@ -93,6 +96,15 @@ def unlink_project(project_id):
         print(e)
         return jsonify({"error": f"Error breaking linking: {str(e)}"}), 500
 
+@app.route('/train-<project_id>')
+async def train_project(project_id):
+    try:
+        await SCHEDULER.check_and_train(overrided_project=int(project_id))
+        return jsonify({"message": "Manual training initialized"}), 200
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({"error": f"Error in manual train init: {str(e)}"}), 500
+
 @app.route('/update-settings', methods=['POST'])
 def update_settings():
     try:
@@ -114,10 +126,13 @@ def update_settings():
         SERVICE.usb_key_file_name = settings['USB_KEY_FILENAME']
 
         # Configure auto training logic
-        SERVICE.async_processes_allowed = settings['ASYNC_PROCESSES_ALLOWED']
-        SERVICE.batch_size_threshold = settings['BATCH_SIZE_THRESHOLD']
-        SERVICE.minutes_to_wait_for_next_annotation = settings['MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION'] 
-        SERVICE.minimum_annotations_required = settings['MINIMUM_ANNOTATIONS_REQUIRED']
+        SERVICE.async_processes_allowed = int(settings['ASYNC_PROCESSES_ALLOWED'])
+        SERVICE.batch_size_threshold = int(settings['BATCH_SIZE_THRESHOLD'])
+        SERVICE.minutes_to_wait_for_next_annotation = float(settings['MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION']) 
+        SERVICE.minimum_annotations_required = int(settings['MINIMUM_ANNOTATIONS_REQUIRED'])
+
+        # Configure dark mode
+        SERVICE.dark_mode = bool(settings["DARK_MODE"])
 
         return jsonify({"message": "Settings updated successfully!"}), 200
     except Exception as e:
