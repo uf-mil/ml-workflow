@@ -162,7 +162,14 @@ class Scheduler:
             await trainer.train(callback=callback)
 
 
-    async def check_and_train(self):
+    async def check_and_train(self, overrided_project=None):        
+        # Override
+        if overrided_project is not None:
+            id = overrided_project
+            if id not in self.training_queue_set and (id not in self.training_dict or val - self.service.batch_size_threshold > self.service.batch_size_threshold):
+                    self.training_queue.append(id)
+                    self.training_queue_set.add(id)
+
         for id, val in self.project_tasks_dif.items():
             if val >= self.service.batch_size_threshold and self.project_finished_tasks_dict[id] > self.service.minimum_annotations_required: # Condition to set for training
                 print('**',id, val, self.project_finished_tasks_dict[id])

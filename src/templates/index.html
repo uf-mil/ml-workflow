@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
     <title>MIL Autotrainer</title>
     <style>
         body {
@@ -18,6 +17,12 @@
             align-items: center;
             height: 100vh;
         }
+
+        body.dark-mode {
+            background-color: #1d1d1f;
+            color: #ffffff;
+        }
+
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -35,6 +40,10 @@
             flex-direction: column;
             overflow: hidden;
         }
+        .dark-mode .box {
+            background: rgb(24, 24, 24);
+        }
+
         .box-content {
             overflow: auto;
             flex: 1;
@@ -49,6 +58,10 @@
             top: 0;
             z-index: 1;
         }
+        .dark-mode h2 {
+            background: rgb(24, 24, 24);
+        }
+
         .full-width {
             grid-column: span 2;
         }
@@ -62,6 +75,10 @@
             justify-content: space-between;
             align-items: center;
         }
+        .dark-mode .draggable {
+            background: #222;
+        }
+
         .status-indicator {
             width: 12px;
             height: 12px;
@@ -83,8 +100,15 @@
             align-items: flex-start;
             flex-direction: column;
         }
+        .dark-mode .project-item {
+            background: #222;
+        }
+
         .project-item:hover {
             background-color: #e0e0e0;
+        }
+        .dark-mode .project-item:hover {
+            background-color: #202020;
         }
         .project-title {
             font-weight: bold;
@@ -105,14 +129,25 @@
             justify-content: space-around;
             width: '100%';
         }
+        .dark-mode .action-menu {
+            background: rgb(24, 24, 24);
+        }
         .action-menu button {
             background: none;
             border: none;
             padding: 5px 10px;
             cursor: pointer;
         }
+        .dark-mode .action-menu button {
+            color: #ffffff;
+        }
         .action-menu button:hover {
             background-color: #f0f0f0;
+            color: #000;
+        }
+        .dark-mode .action-menu button:hover {
+            background-color: #0f0f0f;
+            color: #fff;
         }
         .project-stats {
             display: flex;
@@ -132,11 +167,17 @@
             padding: 8px;
             border-radius: 8px;
         }
+        .dark-mode .log-item {
+            background: #222;
+        }
         .log-item-content {
             display: none;
             background: #ddd;
             padding: 8px;
             border-radius: 8px;
+        }
+        .dark-mode .log-item-content {
+            background: #333;
         }
         ul {
             list-style: none;
@@ -155,6 +196,10 @@
             transition: all 0.2s ease-in-out;
             cursor: pointer;
         }
+        .dark-mode .settings-button {
+            background-color: rgb(24, 24, 24);
+            color: #ffffff;
+        }
 
         .settings-button:hover {
             background-color: #171717;
@@ -166,7 +211,7 @@
         }
     </style>
 </head>
-<body>
+<body class="{% if dark_mode %}dark-mode{% endif %}">
     <div style="width: 80vw; display: flex; align-items: flex-start; justify-content: space-between;">
         <h1> MIL Autotrainer</h1>
         <div style="display: flex; flex-direction: row; align-items: center;">

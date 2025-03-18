@@ -12,6 +12,10 @@
             background-color: #f5f5f7;
             color: #1d1d1f;
         }
+        body.dark-mode {
+            background-color: #1d1d1f;
+            color: #ffffff;
+        }
         header {
             display: flex;
             justify-content: space-between;
@@ -34,6 +38,10 @@
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             transition: background-color 0.2s;
+        }
+        .dark-mode button {
+            background-color: rgb(24,24,24);
+            color: white;
         }
         button:hover {
             background-color: #070707;
@@ -58,13 +66,16 @@
             border-radius: 20px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
         }
+        .dark-mode .block {
+            background: rgb(24, 24, 24);
+        }
         h2 {
             font-size: 24px;
             margin-bottom: 16px;
         }
     </style>
 </head>
-<body>
+<body class="{% if dark_mode %}dark-mode{% endif %}">
     <header>
         <div class="header-info">
             <p style="font-weight: bold; color: #696969; padding-bottom: 15px;">{{ project_id }}</p>
@@ -85,7 +96,7 @@
         <button style="width: 120px;" onclick="window.location.href='/'">🏠 Home</button>
     </header>
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
-        <button onclick="handleAction('${project.id}', 'play')">🏃 Train</button>
+        <button onclick="trainProject('{{ project_id }}')">🏃 Train</button>
         <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
         <button onclick="linkProject('{{ project_id }}')">🔗 Link</button>
         <button onclick="unlinkProject('{{ project_id }}')">✂️ Break Link</button>
@@ -121,6 +132,17 @@
                     const item = document.getElementById('project_status')
                     item.className = "project-state state-0"
                     item.innerHTML = 'NOT TRACKED'
+                })
+        }
+
+        function trainProject(project_id)
+        {
+            fetch(`/train-${project_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const item = document.getElementById('project_status')
+                    item.className = "project-state state-2"
+                    item.innerHTML = 'IN-QUEUE'
                 })
         }
 
