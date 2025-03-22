@@ -7,4 +7,5 @@ __pycache__/
 *.pt
 logs/*.txt
 gym/*/
+memory/*
 project_tasks.csv

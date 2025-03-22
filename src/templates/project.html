@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Overview</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -103,16 +104,44 @@
     </div>
     <div class="content">
         <div class="block">
-            <h2>Collected Data</h2>
-            <p>{{ collected_data }}</p>
+            <h2>Project Metadata</h2>
+            <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; flex-direction: row; justify-content: space-between;">
+                    <p>Time in Training</p>
+                    <p id="training_duration">{{ training_duration }}</p>
+                </div>
+                <div style="display: flex; flex-direction: row; justify-content: space-between;">
+                    <p>Last Time Trained</p>
+                    <p id="date_time_last_trained">{{ date_time_last_trained }}</p>
+                </div>
+                <div style="display: flex; flex-direction: row; justify-content: space-between;">
+                    <p>Epochs</p>
+                    <p id="epochs">{{ epochs }}</p>
+                </div>
+                <div style="display: flex; flex-direction: row; justify-content: space-between;">
+                    <p>Stored @</p>
+                    <p id="locations_saved">{{ locations_saved }}</p>
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: space-between;">
+                    <p>Latest Report</p>
+                    <p id="latest_report">{{ latest_report }}</p>
+                </div>
+            </div>
         </div>
         <div class="block">
-            <h2>Project Metadata</h2>
-            <p>{{ project_metadata }}</p>
+            <h2>Collected Data</h2>
+            <select id="y-axis-selector" style="display:none;"></select>
+            <canvas id="chart"></canvas>
         </div>
     </div>
 
     <script>
+        // On load
+        let POLLING = false;
+        let chart;
+        let intervalId = -1;
+        getLatestResults("{{ project_id }}")
+
         function linkProject(project_id)
         {
             fetch(`/link-${project_id}`)
@@ -135,15 +164,83 @@
                 })
         }
 
-        function trainProject(project_id)
+        async function fetchData(project_id)
         {
-            fetch(`/train-${project_id}`)
+            POLLING = true
+            intervalId = setInterval(()=>{poll(project_id)}, 1000);
+            response = await fetch(`/train-${project_id}`)
+            data = await response.json()
+            POLLING = false
+            const item = document.getElementById('project_status')
+            item.className = "project-state state-1"
+            item.innerHTML = 'TRACKED'
+
+            return data
+        }
+
+        async function trainProject(project_id) {
+            const data = await fetchData(project_id);
+            createChart(data)
+        }
+
+        function getLatestResults(project_id) {
+            fetch(`/get-latest-results-for-${project_id}`)
                 .then(response => response.json())
-                .then(data => {
-                    const item = document.getElementById('project_status')
-                    item.className = "project-state state-2"
-                    item.innerHTML = 'IN-QUEUE'
-                })
+                .then(data=>createChart(data))
+        }
+
+        function createChart(data) {
+            // Extract column names for dropdown
+            const columns = Object.keys(data[0]).filter(key => key !== "epoch");
+
+            // Show and populate the dropdown
+            const selector = document.getElementById("y-axis-selector");
+            selector.innerHTML = ""; // Clear previous options
+            columns.forEach(col => {
+                let option = document.createElement("option");
+                option.value = col;
+                option.textContent = col;
+                selector.appendChild(option);
+            });
+            selector.style.display = "inline";
+
+            // Prepare the canvas
+            let ctx = document.getElementById("chart").getContext("2d");
+
+            // Destroy previous chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+
+            // Create the chart
+            chart = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: data.map(row => row.epoch),
+                    datasets: [{
+                        label: columns[0],
+                        data: data.map(row => row[columns[0]]),
+                        borderColor: "blue",
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: "Epoch" } },
+                        y: { title: { display: true, text: columns[0] } }
+                    }
+                }
+            });
+
+            // Update chart when dropdown changes
+            selector.addEventListener("change", function() {
+                const selectedColumn = this.value;
+                chart.data.datasets[0].label = selectedColumn;
+                chart.data.datasets[0].data = data.map(row => row[selectedColumn]);
+                chart.options.scales.y.title.text = selectedColumn;
+                chart.update();
+            });
         }
 
         function handleAction(projectId, action) {
@@ -152,6 +249,45 @@
             menu.style.display = 'none';
         }
 
+        function poll(project_id)
+        {
+            if (POLLING) {
+                fetch(`/listen-for-${project_id}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data['training'])
+                        {
+                            const item = document.getElementById('project_status')
+                            item.className = "project-state state-3"
+                            item.innerHTML = 'TRAINING'
+                        }
+                        else
+                        {
+                            const item = document.getElementById('project_status')
+                            item.className = "project-state state-2"
+                            item.innerHTML = `IN-QUEUE (${data['in-queue']})`
+                        }
+
+                        const training_duration = document.getElementById('training_duration')
+                        training_duration.innerText = data['training_duration']
+
+                        const date_time_last_trained = document.getElementById('date_time_last_trained')
+                        date_time_last_trained.innerText = data['date_time_last_trained']
+                        
+                        const epochs = document.getElementById('epochs')
+                        epochs.innerText = data['epochs']
+
+                        const locations_saved = document.getElementById('locations_saved')
+                        locations_saved.innerText = data['locations_saved']
+
+                        const latest_report = document.getElementById('latest_report')
+                        latest_report.innerText = data['latest_report']
+                    })
+            } else {
+                clearInterval(intervalId);  // Stop when condition is false
+                console.log("Stopped polling!");
+            }
+        }
     </script>
 </body>
 </html>

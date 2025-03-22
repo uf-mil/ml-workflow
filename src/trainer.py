@@ -5,7 +5,8 @@ import requests
 import shutil
 from tqdm import tqdm
 import random
-import datetime
+from datetime import datetime
+import pandas as pd
 
 import torch
 import traceback
@@ -41,6 +42,14 @@ class Trainer:
         self.data_count_map = {}
 
         self.model = YOLO("./models/yolo11n.pt")
+        self.return_dict = {
+            "epochs": None,
+            "training_duration": None,
+            "class_acc_string": None,
+            "latest_report": None,
+            "locations_saved": None,
+            "location_of_metrics": None
+        }
         self.save_folder = f"project_{project_id}"
 
         self.is_active = False
@@ -152,7 +161,7 @@ class Trainer:
             save_img_label_pair(i, task, 'val')
     
     def __log_training_session(self,results, footer=""):
-        log_file = os.path.join(os.getcwd(),"logs",f"{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
+        log_file = os.path.join(os.getcwd(),"logs",f"{datetime.now().strftime('%Y-%m-%d')}.txt")
     
         # Extract YOLO training results
         precision = results.results_dict.get("metrics/precision(B)", "N/A")
@@ -161,6 +170,10 @@ class Trainer:
         map50_95 = results.results_dict.get("metrics/mAP50-95(B)", "N/A")
         
         # Class-wise accuracy
+        self.return_dict["class_acc_string"] = ",".join(
+            [f"{class_name}:{results.maps[i]}" 
+            for i, class_name in enumerate(self.labels)]
+        )
         class_wise_metrics = "\n".join(
             [f"- {class_name}: {results.maps[i]}" 
             for i, class_name in enumerate(self.labels)]
@@ -169,7 +182,7 @@ class Trainer:
         # Create log entry
         log_entry = f"""
 =======================================
-Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 =======================================
 🔹 **Project Name**: {self.project.title}
 🔹 **Project ID**: {self.project_id}
@@ -182,7 +195,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 📌 **Training Configuration**
 - **Model**: {self.model.model_name}
-- **Epochs Attempted**: {500}
+- **Epochs Attempted**: {self.return_dict["epochs"]}
 - **Batch Size**: {-1}
 - **Image Size**: {640}
 - **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
@@ -211,6 +224,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             if log_file_exists:
                 f.write(old_content)
         
+        self.return_dict["latest_report"] = log_entry
         print(f"Logged training session to {log_file}")
     
     def __log_error(self, error):
@@ -225,7 +239,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             }
             return suggestions.get(error_type, "Check the stack trace for more details.")
 
-        log_file = os.path.join(os.getcwd(), "logs",f"{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
+        log_file = os.path.join(os.getcwd(), "logs",f"{datetime.now().strftime('%Y-%m-%d')}.txt")
     
         error_type = type(error).__name__
         error_message = str(error)
@@ -233,7 +247,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         
         log_entry = f"""
 =======================================
-🚨 Training Error - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+🚨 Training Error - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 =======================================
 🔹 **Project Name**: {self.project.title}
 🔹 **Project ID**: {self.project_id}
@@ -273,13 +287,25 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             if log_file_exists:
                 f.write(old_content)
 
+        self.return_dict["latest_report"] = log_entry
         print(f"Logged error to {log_file}")
 
     def __store_model(self, metrics_path)->str:
-        return ModelTransporter(self.save_folder).full_save(
+        log_msg, locations = ModelTransporter(self.save_folder).full_save(
             self.model, 
             f"project_{self.project_id}.pt", 
-            metrics_path)
+            metrics_path,
+            self.project_id)
+        self.return_dict['locations_saved'] = locations['model']
+        self.return_dict['location_of_metrics'] = locations['metrics']
+        return log_msg
+    
+    def __log_num_epochs(self, path):
+        # Load in the results csv file and read the number of rows - 2
+        df = pd.read_csv(path)
+        num_epochs = len(df)
+        self.return_dict["epochs"] = num_epochs
+
 
     def begin_training(self):
         cwd = os.getcwd()
@@ -292,14 +318,18 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         
         # Keep on training until no improvement is seen in ten epochs
         try:
+            start = datetime.now()
             results = self.model.train(
                 data = path,
-                epochs = 1,
-                patience = 10,
+                epochs = 10,
+                patience = 5,
                 batch = -1,
                 device = "cuda" if torch.cuda.is_available() else "cpu",
                 project = cwd + f"/gym/project_{self.project_id}/runs"
             )
+            duration =  datetime.now() - start
+            self.return_dict["training_duration"] = str(duration)
+            self.__log_num_epochs(results.save_dir / "results.csv")
             # Save the model to some location
             storing_output = self.__store_model(results.save_dir)
 
@@ -335,7 +365,7 @@ Training Session - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return
         finally:
             if callback and callable(callback):
-                await callback(self.project_id)
+                await callback(self.project_id, self.return_dict)
             else:
                 print("[ERROR] Did not call callback")
         
