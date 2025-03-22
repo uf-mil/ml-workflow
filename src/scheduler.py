@@ -151,14 +151,22 @@ class Scheduler:
             GREEN = '\033[32m'
             RESET = '\033[0m'
             print(f"{GREEN}TRAINER {id} BEGAN TRAINING{RESET}")
-            async def callback(id):
+            async def callback(id, train_output):
                 self.project_tasks_dif[id] = 0
                 self.project_finished_tasks_dict[id] = last_amount_annotated
+                # Store train output in dict
+                self.projects[id]['epochs'] = train_output['epochs']
+                self.projects[id]['training_duration'] = train_output['training_duration']
+                self.projects[id]['class_acc_string'] = train_output['class_acc_string']
+                self.projects[id]['latest_report'] = train_output['latest_report']
+                self.projects[id]['locations_saved'] = train_output['locations_saved']
+
                 self.training_dict.pop(id)
                 self.update_csv_memory()
                 await self.check_and_train()
 
             self.train_calls += 1
+            self.projects[id]['date_time_last_trained'] = datetime.now()
             await trainer.train(callback=callback)
 
 

@@ -7,6 +7,8 @@ import smbclient
 import socket
 from pathlib import Path
 
+from typing import Tuple, Any
+
 API_KEY = os.getenv("API_KEY")
 USB_KEY_FILENAME = os.getenv("USB_KEY_FILENAME")
 
@@ -40,7 +42,7 @@ class ModelTransporter:
         except Exception as e:
             return False
     
-    def save_model(self, model, weights_name)->str:
+    def save_model(self, model, weights_name)->Tuple[str, Any]:
         model_path = os.path.join(self.save_folder, "weights", weights_name)
         model_dir = os.path.join(self.save_folder, "weights")
 
@@ -50,7 +52,7 @@ class ModelTransporter:
             usb_path = os.path.join(usb_drive,"ml-workflow", model_dir)
             os.makedirs(usb_path, exist_ok=True)
             torch.save(model.state_dict(), os.path.join(usb_path, weights_name))
-            return f"✅ Model saved to USB: {usb_path}"
+            return f"✅ Model saved to USB: {usb_path}", usb_path
             
 
         # Check if file server is available
@@ -70,7 +72,7 @@ class ModelTransporter:
                 with smbclient.open_file(remote_file_path, mode="wb") as remote_f:
                     torch.save(model.state_dict(), remote_f)
                 
-                return f"✅ Model saved to file server: {remote_path}"
+                return f"✅ Model saved to file server: {remote_path}", remote_path
         except Exception as e:
             print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
@@ -79,14 +81,14 @@ class ModelTransporter:
         model_path = "./local-saves/"+model_path
         os.makedirs(model_dir, exist_ok=True)
         torch.save(model.state_dict(), model_path)
-        return f"✅ Model saved locally: {model_path}"
+        return f"✅ Model saved locally: {model_path}", model_path
     
-    def save_metrics_directory(self, metrics_path)->str:
+    def save_metrics_directory(self, metrics_path)->Tuple[str, Any]:
         metrics_path = Path(metrics_path)
         save_path = os.path.join(self.save_folder, "metrics")
 
         if not metrics_path.exists():
-            return f"❌ Error: Training directory {metrics_path} does not exist."
+            return f"❌ Error: Training directory {metrics_path} does not exist.", None
             
         
         # Check for USB device
@@ -99,7 +101,7 @@ class ModelTransporter:
                 if os.path.isdir(os.path.join(str(metrics_path),f)):
                     continue
                 shutil.move(os.path.join(str(metrics_path),f), os.path.join(str(usb_path),f))
-            return f"✅ Metrics saved to USB: {usb_path}"
+            return f"✅ Metrics saved to USB: {usb_path}", usb_path
             
 
         # Check if file server is available
@@ -124,7 +126,7 @@ class ModelTransporter:
                         with smbclient.open_file(remote_file_path, mode="wb") as dest:
                             shutil.copyfileobj(src, dest)
                                 
-                return f"✅ Metrics saved to file server: {remote_path}"
+                return f"✅ Metrics saved to file server: {remote_path}", remote_path
         except Exception as e:
             print(f"[INFO]: Could not establish connection to file server because:\n{e}")
 
@@ -137,9 +139,9 @@ class ModelTransporter:
                     continue
             shutil.move(os.path.join(str(metrics_path),f), os.path.join(str(save_path),f))
 
-        return f"✅ Metrics saved locally: {save_path}"
+        return f"✅ Metrics saved locally: {save_path}", save_path
     
-    def full_save(self, model, weights_name, metrics_path)->str:
-        model_save = self.save_model(model, weights_name)
-        metrics_save = self.save_metrics_directory(metrics_path)
-        return model_save + "\n" + metrics_save
+    def full_save(self, model, weights_name, metrics_path)->Tuple[str, dict]:
+        model_save_msg, model_path = self.save_model(model, weights_name)
+        metrics_save_msg, data_path = self.save_metrics_directory(metrics_path)
+        return model_save_msg + "\n" + metrics_save_msg, {'model': model_path, 'metrics': data_path}
