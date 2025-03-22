@@ -294,7 +294,8 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         log_msg, locations = ModelTransporter(self.save_folder).full_save(
             self.model, 
             f"project_{self.project_id}.pt", 
-            metrics_path)
+            metrics_path,
+            self.project_id)
         self.return_dict['locations_saved'] = locations['model']
         self.return_dict['location_of_metrics'] = locations['metrics']
         return log_msg

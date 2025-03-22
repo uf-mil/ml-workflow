@@ -9,6 +9,7 @@ from dotenv import load_dotenv, set_key
 from scheduler import Scheduler
 from service import Service
 from transporter import ModelTransporter
+from memoryHandler import MemoryHandler
 
 from flask import Flask, request, jsonify, render_template
 
@@ -43,7 +44,9 @@ def show_settings():
 @app.route("/project-<project_id>")
 def project_overview(project_id):
     # Example data, replace with actual data fetching logic
-    project = SCHEDULER.projects[int(project_id)]
+    project_id = int(project_id)
+    project = SCHEDULER.projects[project_id]
+
     project_data = {
         "project_name": project['title'],
         "project_id": project_id,
@@ -61,11 +64,15 @@ def project_overview(project_id):
         "latest_report": project["latest_report"],
         # Collected data
         "class_acc_string": project["class_acc_string"],
-        "location_of_metrics": project["location_of_metrics"],
         "dark_mode":SERVICE.dark_mode
     }
 
     return render_template("project.html", **project_data)
+
+@app.route("/get-latest-results-for-<project_id>")
+def get_latest_results_for(project_id):
+    results_data = MemoryHandler().pull_latest_results_for(project_id)
+    return jsonify(results_data), 200
 
 @app.route("/link-<project_id>")
 def link_project(project_id):

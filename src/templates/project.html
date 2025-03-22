@@ -136,10 +136,11 @@
     </div>
 
     <script>
+        // On load
         let POLLING = false;
         let chart;
-        // Poll service while training or in-queue
         let intervalId = -1;
+        getLatestResults("{{ project_id }}")
 
         function linkProject(project_id)
         {
@@ -179,7 +180,16 @@
 
         async function trainProject(project_id) {
             const data = await fetchData(project_id);
+            createChart(data)
+        }
 
+        function getLatestResults(project_id) {
+            fetch(`/get-latest-results-for-${project_id}`)
+                .then(response => response.json())
+                .then(data=>createChart(data))
+        }
+
+        function createChart(data) {
             // Extract column names for dropdown
             const columns = Object.keys(data[0]).filter(key => key !== "epoch");
 

@@ -5,9 +5,11 @@ import torch
 import shutil
 import smbclient
 import socket
+import pandas as pd
 from pathlib import Path
 
 from typing import Tuple, Any
+from memoryHandler import MemoryHandler
 
 API_KEY = os.getenv("API_KEY")
 USB_KEY_FILENAME = os.getenv("USB_KEY_FILENAME")
@@ -83,13 +85,15 @@ class ModelTransporter:
         torch.save(model.state_dict(), model_path)
         return f"✅ Model saved locally: {model_path}", model_path
     
-    def save_metrics_directory(self, metrics_path)->Tuple[str, Any]:
+    def save_metrics_directory(self, metrics_path, project_id)->Tuple[str, Any]:
         metrics_path = Path(metrics_path)
         save_path = os.path.join(self.save_folder, "metrics")
 
         if not metrics_path.exists():
             return f"❌ Error: Training directory {metrics_path} does not exist.", None
             
+        # Save to results.csv to service memory
+        MemoryHandler().commit_results_to_memory(project_id, metrics_path)
         
         # Check for USB device
         usb_drive = self.scan_for_available_usb_device()
@@ -141,7 +145,7 @@ class ModelTransporter:
 
         return f"✅ Metrics saved locally: {save_path}", save_path
     
-    def full_save(self, model, weights_name, metrics_path)->Tuple[str, dict]:
+    def full_save(self, model, weights_name, metrics_path, project_id)->Tuple[str, dict]:
         model_save_msg, model_path = self.save_model(model, weights_name)
-        metrics_save_msg, data_path = self.save_metrics_directory(metrics_path)
+        metrics_save_msg, data_path = self.save_metrics_directory(metrics_path, project_id)
         return model_save_msg + "\n" + metrics_save_msg, {'model': model_path, 'metrics': data_path}
