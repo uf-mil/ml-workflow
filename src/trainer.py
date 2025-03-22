@@ -47,7 +47,8 @@ class Trainer:
             "training_duration": None,
             "class_acc_string": None,
             "latest_report": None,
-            "locations_saved": None
+            "locations_saved": None,
+            "location_of_metrics": None
         }
         self.save_folder = f"project_{project_id}"
 
@@ -295,6 +296,7 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             f"project_{self.project_id}.pt", 
             metrics_path)
         self.return_dict['locations_saved'] = locations['model']
+        self.return_dict['location_of_metrics'] = locations['metrics']
         return log_msg
     
     def __log_num_epochs(self, path):
@@ -318,14 +320,14 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             start = datetime.now()
             results = self.model.train(
                 data = path,
-                epochs = 1,
-                patience = 10,
+                epochs = 10,
+                patience = 5,
                 batch = -1,
                 device = "cuda" if torch.cuda.is_available() else "cpu",
                 project = cwd + f"/gym/project_{self.project_id}/runs"
             )
             duration =  datetime.now() - start
-            self.return_dict["training_duration"] = duration
+            self.return_dict["training_duration"] = str(duration)
             self.__log_num_epochs(results.save_dir / "results.csv")
             # Save the model to some location
             storing_output = self.__store_model(results.save_dir)

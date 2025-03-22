@@ -74,12 +74,13 @@ class Scheduler:
                         'training_duration': row["training_duration"],
                         'epochs': row["epochs"],
                         'locations_saved': row["locations_saved"],
+                        'location_of_metrics': row["location_of_metrics"],
                         'class_acc_string': row["class_acc_string"],
                         'latest_report': row["latest_report"]
                     } 
         else: # Load finished_task data from LabelStudio
             with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","class_acc_string","latest_report"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                 writer.writeheader()
 
                 projects = self.ls.projects.list()
@@ -97,6 +98,7 @@ class Scheduler:
                         'training_duration': '',
                         'epochs': '',
                         'locations_saved': '',
+                        'location_of_metrics': '',
                         'class_acc_string': '',
                         'latest_report': ''
                     }
@@ -106,7 +108,7 @@ class Scheduler:
     def update_csv_memory(self):
         os.remove("project_tasks.csv")
         with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","class_acc_string","latest_report"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                 writer.writeheader()
 
                 projects = self.ls.projects.list()
@@ -125,6 +127,7 @@ class Scheduler:
                         'training_duration': local_project['training_duration'],
                         'epochs': local_project['epochs'],
                         'locations_saved': local_project['locations_saved'],
+                        'location_of_metrics': local_project['location_of_metrics'],
                         'class_acc_string': local_project['class_acc_string'],
                         'latest_report': local_project['latest_report']
                     }
@@ -160,6 +163,7 @@ class Scheduler:
                 self.projects[id]['class_acc_string'] = train_output['class_acc_string']
                 self.projects[id]['latest_report'] = train_output['latest_report']
                 self.projects[id]['locations_saved'] = train_output['locations_saved']
+                self.projects[id]['location_of_metrics'] = train_output['location_of_metrics']
 
                 self.training_dict.pop(id)
                 self.update_csv_memory()

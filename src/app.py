@@ -1,6 +1,8 @@
 import os
 import asyncio
 import traceback
+import pandas as pd
+from datetime import datetime
 
 from dotenv import load_dotenv, set_key
 
@@ -51,8 +53,15 @@ def project_overview(project_id):
                             2 if project_id in SCHEDULER.training_queue_set else 
                             1 if project["tracked"] == True else 
                             0,
-        "collected_data": "Here’s some collected data about the project...",
-        "project_metadata": "This is the project's metadata...",
+        # Project Metadata
+        "training_duration": project["training_duration"],
+        'date_time_last_trained': project['date_time_last_trained'],
+        "epochs": project["epochs"],
+        "locations_saved": project["locations_saved"],
+        "latest_report": project["latest_report"],
+        # Collected data
+        "class_acc_string": project["class_acc_string"],
+        "location_of_metrics": project["location_of_metrics"],
         "dark_mode":SERVICE.dark_mode
     }
 
@@ -99,11 +108,24 @@ def unlink_project(project_id):
 @app.route('/train-<project_id>')
 async def train_project(project_id):
     try:
+        project_id = int(project_id)
         await SCHEDULER.check_and_train(overrided_project=int(project_id))
-        return jsonify({"message": "Manual training initialized"}), 200
+        df = pd.read_csv(SCHEDULER.projects[project_id]['location_of_metrics'] + '/results.csv')
+        json_data = df.to_dict(orient="records")  # Convert rows to a list of dictionaries
+        return jsonify(json_data), 200
     except Exception as e:
         print(traceback.format_exc())
         return jsonify({"error": f"Error in manual train init: {str(e)}"}), 500
+
+@app.route('/listen-for-<project_id>')
+def listen_for_id(project_id):
+    project_id = int(project_id)
+    project = SCHEDULER.projects[project_id]
+    project['training_duration'] = str(datetime.now() - project['date_time_last_trained']) if type(project['date_time_last_trained']) is not str  else project['training_duration']
+    project['in-queue'] = SCHEDULER.training_queue.index(int(project_id)) if int(project_id) in SCHEDULER.training_queue_set else -1
+    project['training'] = int(project_id) in SCHEDULER.training_dict
+
+    return project, 201
 
 @app.route('/update-settings', methods=['POST'])
 def update_settings():
