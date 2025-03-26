@@ -3,6 +3,7 @@ import os
 
 import requests
 import shutil
+import asyncio
 from tqdm import tqdm
 import random
 from datetime import datetime
@@ -53,6 +54,8 @@ class Trainer:
         self.save_folder = f"project_{project_id}"
 
         self.is_active = False
+
+        self.will_cancel = False
 
         try:
             os.makedirs(f"./gym/project_{project_id}/images/train",exist_ok=True)
@@ -307,7 +310,7 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.return_dict["epochs"] = num_epochs
 
 
-    def begin_training(self):
+    async def begin_training(self):
         cwd = os.getcwd()
         print("Current working directory:", cwd)
         path = cwd + f'/gym/project_{self.project_id}/data.yaml'
@@ -318,7 +321,12 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         
         # Keep on training until no improvement is seen in ten epochs
         try:
+            def check_for_cancellation(data):
+                if self.will_cancel:
+                    raise asyncio.CancelledError("Training Cancelled")
+                
             start = datetime.now()
+            self.model.add_callback("on_train_epoch_end", check_for_cancellation)
             results = self.model.train(
                 data = path,
                 epochs = 10,
@@ -336,9 +344,10 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             # Log the training session
             self.__log_training_session(results, storing_output)
         except Exception as e:
+            print("LOGGING ERROR")
             self.__log_error(e)
         
-    def __leave_gym(self):
+    def leave_gym(self):
         base_path = f"./gym/project_{self.project_id}"
         if os.path.exists(base_path):
             shutil.rmtree(base_path)  # Delete the entire project directory
@@ -355,16 +364,16 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             #TODO: When a training session finishes remove the project id from the training set
             print("[INFO]: Training model on tiny...")
-            self.begin_training()
+            await self.begin_training()
 
             print("[INFO]: Cleaning up project directory from the gym...")
-            self.__leave_gym()
+            self.leave_gym()
         except Exception as e:
             print(f"[ERROR]: {e}")
             print(traceback.print_exc())
             return
         finally:
-            if callback and callable(callback):
+            if callback and callable(callback) and not self.will_cancel:
                 await callback(self.project_id, self.return_dict)
             else:
                 print("[ERROR] Did not call callback")

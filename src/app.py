@@ -124,6 +124,20 @@ async def train_project(project_id):
         print(traceback.format_exc())
         return jsonify({"error": f"Error in manual train init: {str(e)}"}), 500
 
+@app.route('/stop-<project_id>')
+async def stop_project_from_training(project_id):
+    # Check if project is in training queue
+    project_id = int(project_id)
+    if project_id in SCHEDULER.training_queue_set:
+        SCHEDULER.training_queue_set.remove(project_id)
+        SCHEDULER.training_queue.remove(project_id)
+        return {'success': True}, 200
+    elif project_id in SCHEDULER.training_dict:
+        await SCHEDULER.stop_project_in_training(project_id)
+        return {'success': True}, 200
+    else:
+        return {'warn': "Project not found"}, 404
+
 @app.route('/listen-for-<project_id>')
 def listen_for_id(project_id):
     project_id = int(project_id)

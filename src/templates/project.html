@@ -98,7 +98,7 @@
     </header>
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
         <button onclick="trainProject('{{ project_id }}')">🏃 Train</button>
-        <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
+        <button onclick="stopTraining('{{ project_id }}')">🛑 Stop</button>
         <button onclick="linkProject('{{ project_id }}')">🔗 Link</button>
         <button onclick="unlinkProject('{{ project_id }}')">✂️ Break Link</button>
     </div>
@@ -183,6 +183,14 @@
             createChart(data)
         }
 
+        function stopTraining(project_id) {
+            fetch(`/stop-${project_id}`)
+            POLLING = false
+            const item = document.getElementById('project_status')
+            item.className = "project-state state-1"
+            item.innerHTML = 'TRACKED'
+        }
+
         function getLatestResults(project_id) {
             fetch(`/get-latest-results-for-${project_id}`)
                 .then(response => response.json())
@@ -241,12 +249,6 @@
                 chart.options.scales.y.title.text = selectedColumn;
                 chart.update();
             });
-        }
-
-        function handleAction(projectId, action) {
-            alert(`Action: ${action} on project ${projectId}`);
-            const menu = document.getElementById(`action-menu-${projectId}`);
-            menu.style.display = 'none';
         }
 
         function poll(project_id)
