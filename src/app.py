@@ -20,6 +20,7 @@ SCHEDULER = Scheduler(service=SERVICE)
 
 @app.route("/")
 def check_environment():
+    print(SERVICE.dark_mode)
     return render_template(
         'index.html',
         dark_mode=SERVICE.dark_mode
@@ -77,6 +78,8 @@ def get_latest_results_for(project_id):
 @app.route("/link-<project_id>")
 def link_project(project_id):
     try:
+        #TODO: Check if a webhook for this project with the link already exists
+        
         SCHEDULER.ls.webhooks.create(
             url=f'{request.url_root}update',
             project=int(project_id),
@@ -102,7 +105,9 @@ def unlink_project(project_id):
     try:
         webhooks = SCHEDULER.ls.webhooks.list()
         for wh in webhooks:
-            if wh.project == project_id:
+            print(wh.project, wh)
+            if wh.project == int(project_id):
+                print("deleted ", project_id)
                 SCHEDULER.ls.webhooks.delete(wh.id)
         
         SCHEDULER.projects[int(project_id)]['tracked'] = False

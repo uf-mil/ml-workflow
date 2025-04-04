@@ -33,7 +33,7 @@ class Service:
         self.minimum_annotations_required = int(os.getenv('MINIMUM_ANNOTATIONS_REQUIRED', 10))
 
         # Dark mode
-        self.dark_mode = bool(os.getenv('DARK_MODE', False))
+        self.dark_mode = os.getenv('DARK_MODE', 'False') == 'True'
 
 
           

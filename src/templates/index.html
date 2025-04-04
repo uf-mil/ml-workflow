@@ -148,6 +148,7 @@
         .dark-mode .action-menu button:hover {
             background-color: #0f0f0f;
             color: #fff;
+            border-radius: 10px;
         }
         .project-stats {
             display: flex;
@@ -240,12 +241,8 @@
     </div>
 
     <script>
-        let once = true;
-
-        function goToSettings() {
-            window.location.href = '/settings';
-        }
-
+        let once = true
+        
         function fetchData() {
             fetch('/get-data')
                 .then(response => response.json())
@@ -253,13 +250,67 @@
                     updateDevicesList(data.devices);
                     if (once)
                     {
-                        updateProjectsList(data.projects);
-                        updateLogList(data.logs);
+                        getProjectList(data.projects);
+                        getLogList(data.logs);
                         once = false
                     }
-                        
+                    else
+                    {
+                        updateProjectList(data.projects)
+                    }
                 });
         }
+
+        // Project Action buttons
+        function linkProject(project_id)
+        {
+            fetch(`/link-${project_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const item = document.getElementById(`project-state-${project.id}`)
+                    item.className = "project-state state-1"
+                    item.innerHTML = 'TRACKED'
+                })
+        }
+
+        function unlinkProject(project_id)
+        {
+            fetch(`/unlink-${project_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const item = document.getElementById(`project-state-${project.id}`)
+                    item.className = "project-state state-0"
+                    item.innerHTML = 'NOT TRACKED'
+                })
+        }
+
+        async function fetchTrainData(project_id)
+        {
+            response = await fetch(`/train-${project_id}`)
+            data = await response.json()
+            // const item = document.getElementById(`project-state-${project.id}`)
+            // item.className = "project-state state-1"
+            // item.innerHTML = 'TRACKED'
+
+            return data
+        }
+
+        async function trainProject(project_id) {
+            const data = await fetchTrainData(project_id);
+        }
+
+        function stopTraining(project_id) {
+            fetch(`/stop-${project_id}`)
+            const item = document.getElementById(`project-state-${project.id}`)
+            item.className = "project-state state-1"
+            item.innerHTML = 'TRACKED'
+        }
+        // -- Project Action buttons
+
+        function goToSettings() {
+            window.location.href = '/settings';
+        }
+
 
         function updateDevicesList(devices) {
             const list = document.getElementById('devices-list');
@@ -274,7 +325,23 @@
             });
         }
 
-        function updateProjectsList(projects) {
+        function updateProjectList(projects) {
+            projects.forEach(project => {
+                const item = document.getElementById(`project-state-${project.id}`)
+                item.className = `project-state state-${project.state}`
+                if (project.state == 3)
+                    item.innerHTML = 'TRAINING'
+                else if (project.state == 2)
+                    item.innerHTML = 'IN-QUEUE'
+                else if (project.state == 1)
+                    item.innerHTML = 'TRACKED'
+                else
+                    item.innerHTML = 'NOT TRACKED'
+                
+            });
+        }
+
+        function getProjectList(projects) {
             const list = document.getElementById('projects-list');
             list.innerHTML = '';
             projects.sort((a, b) => b.state - a.state || b.id - a.id);
@@ -283,22 +350,22 @@
                 item.className = 'project-item';
                 item.id = project.id
                 item.innerHTML = `
-                    <div style='width:100%' onclick="handleProjectClick(event, '${project.id}')">
+                    <div style="width:100%" onclick="handleProjectClick(event, '${project.id}')">
                         <div class="project-title">
                             <div>${project.title}</div>
                             <div>${project.id}</div>
                         </div>
                         <div class="project-stats">
                             <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
-                            <div class="project-state state-${project.state}">
+                            <div id="project-state-${project.id}" class="project-state state-${project.state}">
                                 ${project.state === 3 ? 'TRAINING' : project.state === 2 ? 'IN-QUEUE' : project.state === 1 ? 'TRACKED' : 'NOT TRACKED'}
                             </div>
                         </div>
                         <div id="action-menu-${project.id}" class="action-menu">
-                            <button onclick="handleAction('${project.id}', 'play')">🏃 Train</button>
-                            <button onclick="handleAction('${project.id}', 'pause')">🛑 Stop</button>
-                            <button onclick="handleAction('${project.id}', 'link')">🔗 Link</button>
-                            <button onclick="handleAction('${project.id}', 'break')">✂️ Break Link</button>
+                            <button onclick="event.stopPropagation(); trainProject('${project.id}')">🏃 Train</button>
+                            <button onclick="event.stopPropagation(); stopTraining('${project.id}')">🛑 Stop</button>
+                            <button onclick="event.stopPropagation(); linkProject('${project.id}')">🔗 Link</button>
+                            <button onclick="event.stopPropagation(); unlinkProject('${project.id}')">✂️ Break Link</button>
                         </div>
                     </div>
                 `;
@@ -306,7 +373,7 @@
             });
         }
 
-        function updateLogList(logs) {
+        function getLogList(logs) {
             const list = document.getElementById('log-list');
             list.innerHTML = '';
             logs.sort();
