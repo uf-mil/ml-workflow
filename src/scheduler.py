@@ -2,6 +2,7 @@ import os
 import csv
 import time
 import asyncio
+from threading import Thread
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -13,6 +14,7 @@ from label_studio_sdk import Client
 
 from trainer import Trainer
 from service import Service
+from logger import Logger
 
 class Scheduler:
     _instance = None
@@ -53,6 +55,7 @@ class Scheduler:
         self.project_finished_tasks_dict = {}
         self.project_tasks_dif = {}
         self.training_dict = {}
+        self.trainer_dict = {}
         self.training_queue_set = set()
         self.training_queue = []
 
@@ -134,51 +137,70 @@ class Scheduler:
 
                     writer.writerow(project_data)
     
+    async def stop_project_in_training(self, project_id):
+        self.trainer_dict[project_id].will_cancel = True
+
     async def __listen_for_more_annotations_and_train(self, id, trainer:Trainer):
-        # Store last amount of annotations made
-        last_amount_annotated = self.project_finished_tasks_dict[id]
+        try:
+            # Store last amount of annotations made
+            last_amount_annotated = self.project_finished_tasks_dict[id]
 
-        # Wait 5-minutes before checking if the number of annotations has increased
-        await asyncio.sleep(self.service.minutes_to_wait_for_next_annotation*60)
+            # Wait 5-minutes before checking if the number of annotations has increased
+            await asyncio.sleep(self.service.minutes_to_wait_for_next_annotation*60)
 
-        # Check if there is the trainer has already began being trained
-        if trainer.is_active:
+            # Check if there is the trainer has already began being trained
+            if trainer.is_active:
+                return
+
+            # Start training if the number of annotations is the same
+            if self.project_finished_tasks_dict[id] > last_amount_annotated:
+                print("Listening for more annotations...")
+                self.training_dict[id] = self.project_finished_tasks_dict[id]
+                await self.__listen_for_more_annotations_and_train(id, trainer)
+                return
+            else:
+                GREEN = '\033[32m'
+                RESET = '\033[0m'
+                print(f"{GREEN}TRAINER {id} BEGAN TRAINING{RESET}")
+                async def callback(id, train_output):
+                    self.project_tasks_dif[id] = 0
+                    self.project_finished_tasks_dict[id] = last_amount_annotated
+                    # Store train output in dict
+                    self.projects[id]['epochs'] = train_output['epochs']
+                    self.projects[id]['training_duration'] = train_output['training_duration']
+                    self.projects[id]['class_acc_string'] = train_output['class_acc_string']
+                    self.projects[id]['latest_report'] = train_output['latest_report']
+                    self.projects[id]['locations_saved'] = train_output['locations_saved']
+                    self.projects[id]['location_of_metrics'] = train_output['location_of_metrics']
+
+                    self.training_dict.pop(id)
+                    self.trainer_dict.pop(id)
+                    self.update_csv_memory()
+                    await self.check_and_train()
+
+                self.train_calls += 1
+                self.projects[id]['date_time_last_trained'] = datetime.now()
+                await trainer.train(callback=callback)
+        except asyncio.CancelledError:
+            # Log the cancellation
+            Logger().log_training_cancellation(trainer)
+            self.projects[id]['latest_report'] = trainer.return_dict['latest_report']
+            self.update_csv_memory()
+            
+            self.training_dict.pop(id)
+            self.trainer_dict.pop(id)
+            
+            trainer.leave_gym()
+            print(f"Training cancelled for {id}")
+            await self.check_and_train()
             return
-
-        # Start training if the number of annotations is the same
-        if self.project_finished_tasks_dict[id] > last_amount_annotated:
-            self.training_dict[id] = self.project_finished_tasks_dict[id]
-            self.__listen_for_more_annotations_and_train(id, trainer)
-            return
-        else:
-            GREEN = '\033[32m'
-            RESET = '\033[0m'
-            print(f"{GREEN}TRAINER {id} BEGAN TRAINING{RESET}")
-            async def callback(id, train_output):
-                self.project_tasks_dif[id] = 0
-                self.project_finished_tasks_dict[id] = last_amount_annotated
-                # Store train output in dict
-                self.projects[id]['epochs'] = train_output['epochs']
-                self.projects[id]['training_duration'] = train_output['training_duration']
-                self.projects[id]['class_acc_string'] = train_output['class_acc_string']
-                self.projects[id]['latest_report'] = train_output['latest_report']
-                self.projects[id]['locations_saved'] = train_output['locations_saved']
-                self.projects[id]['location_of_metrics'] = train_output['location_of_metrics']
-
-                self.training_dict.pop(id)
-                self.update_csv_memory()
-                await self.check_and_train()
-
-            self.train_calls += 1
-            self.projects[id]['date_time_last_trained'] = datetime.now()
-            await trainer.train(callback=callback)
 
 
     async def check_and_train(self, overrided_project=None):        
         # Override
         if overrided_project is not None:
             id = overrided_project
-            if id not in self.training_queue_set and (id not in self.training_dict or val - self.service.batch_size_threshold > self.service.batch_size_threshold):
+            if id not in self.training_queue_set and id not in self.training_dict:
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
 
@@ -213,7 +235,13 @@ class Scheduler:
                 
                 self.project_to_time_of_threshold_reached[id] = datetime.now()
                 trainer = Trainer(id, self.ls, self.ls_client)
-                training_tasks.append(asyncio.create_task(self.__listen_for_more_annotations_and_train(id=trainer.project_id, trainer=trainer)))
+                task = asyncio.create_task(self.__listen_for_more_annotations_and_train(id=trainer.project_id, trainer=trainer))
+                training_tasks.append(task)
+                self.trainer_dict[id] = trainer
             
-            await asyncio.gather(*training_tasks)
+            try:
+                await asyncio.gather(*training_tasks)
+            except asyncio.CancelledError:
+                print("CANCELLED HERE")
+                raise RuntimeError(f"Cancelled training")
         

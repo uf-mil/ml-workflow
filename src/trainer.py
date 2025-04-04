@@ -3,6 +3,7 @@ import os
 
 import requests
 import shutil
+import asyncio
 from tqdm import tqdm
 import random
 from datetime import datetime
@@ -16,6 +17,7 @@ from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
 from transporter import ModelTransporter
+from logger import Logger
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
 API_KEY = os.getenv("API_KEY")
@@ -53,6 +55,8 @@ class Trainer:
         self.save_folder = f"project_{project_id}"
 
         self.is_active = False
+
+        self.will_cancel = False
 
         try:
             os.makedirs(f"./gym/project_{project_id}/images/train",exist_ok=True)
@@ -159,136 +163,6 @@ class Trainer:
               
         for i, task in enumerate(tqdm(val)):
             save_img_label_pair(i, task, 'val')
-    
-    def __log_training_session(self,results, footer=""):
-        log_file = os.path.join(os.getcwd(),"logs",f"{datetime.now().strftime('%Y-%m-%d')}.txt")
-    
-        # Extract YOLO training results
-        precision = results.results_dict.get("metrics/precision(B)", "N/A")
-        recall = results.results_dict.get("metrics/recall(B)", "N/A")
-        map50 = results.results_dict.get("metrics/mAP50(B)", "N/A")
-        map50_95 = results.results_dict.get("metrics/mAP50-95(B)", "N/A")
-        
-        # Class-wise accuracy
-        self.return_dict["class_acc_string"] = ",".join(
-            [f"{class_name}:{results.maps[i]}" 
-            for i, class_name in enumerate(self.labels)]
-        )
-        class_wise_metrics = "\n".join(
-            [f"- {class_name}: {results.maps[i]}" 
-            for i, class_name in enumerate(self.labels)]
-        )
-
-        # Create log entry
-        log_entry = f"""
-=======================================
-Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-=======================================
-🔹 **Project Name**: {self.project.title}
-🔹 **Project ID**: {self.project_id}
-🔹 **Total Data Points**: {self.data_count_map['total']}
-🔹 **Training Samples**: {self.data_count_map['train']}
-🔹 **Validation Samples**: {self.data_count_map['val']}
-🔹 **Test Samples**: {self.data_count_map['test']}
-🔹 **Number of Classes**: {len(self.labels)}
-🔹 **Classes**: {self.labels}
-
-📌 **Training Configuration**
-- **Model**: {self.model.model_name}
-- **Epochs Attempted**: {self.return_dict["epochs"]}
-- **Batch Size**: {-1}
-- **Image Size**: {640}
-- **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
-
-📊 **Training Metrics**
-- **Final Training Precision**: {precision}
-- **Final Training Recall**: {recall}
-- **Best mAP@50**: {map50}
-- **Best mAP@50-95**: {map50_95}
-
-📈 **Class-wise Performance**
-{class_wise_metrics}
-
-✅ **Training Completed Successfully**
-{footer}
----------------------------------------------------
-"""
-        
-        # Write to log file
-        log_file_exists = os.path.exists(log_file)
-        with open(log_file, "r+" if log_file_exists else "w") as f:
-            if log_file_exists:
-                old_content = f.read()
-                f.seek(0)                                                               
-            f.write(log_entry + "\n")
-            if log_file_exists:
-                f.write(old_content)
-        
-        self.return_dict["latest_report"] = log_entry
-        print(f"Logged training session to {log_file}")
-    
-    def __log_error(self, error):
-
-        def suggest_recovery(error_type):
-            suggestions = {
-                "CUDAOutOfMemoryError": "Try reducing batch size or image size.",
-                "FileNotFoundError": "Check if the dataset path is correct.",
-                "KeyError": "Ensure that dataset labels match the model's expected format.",
-                "ValueError": "Verify that inputs to the model are in the correct shape and format.",
-                "RuntimeError": "Check device compatibility and available GPU resources."
-            }
-            return suggestions.get(error_type, "Check the stack trace for more details.")
-
-        log_file = os.path.join(os.getcwd(), "logs",f"{datetime.now().strftime('%Y-%m-%d')}.txt")
-    
-        error_type = type(error).__name__
-        error_message = str(error)
-        stack_trace = traceback.format_exc()
-        
-        log_entry = f"""
-=======================================
-🚨 Training Error - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-=======================================
-🔹 **Project Name**: {self.project.title}
-🔹 **Project ID**: {self.project_id}
-🔹 **Total Data Points**: {self.data_count_map['total']}
-🔹 **Training Samples**: {self.data_count_map['train']}
-🔹 **Validation Samples**: {self.data_count_map['val']}
-🔹 **Test Samples**: {self.data_count_map['test']}
-🔹 **Number of Classes**: {len(self.labels)}
-🔹 **Classes**: {self.labels}
-
-📌 **Training Configuration**
-- **Model**: {self.model.model_name}
-- **Epochs Attempted**: {500}
-- **Batch Size**: {-1}
-- **Image Size**: {640}
-- **Device**: {"cuda" if torch.cuda.is_available() else "cpu"}
-
-❌ **Error Details**
-- **Error Type**: {error_type}
-- **Error Message**: {error_message}
-- **Stack Trace**:
-{stack_trace}
-
-🔄 **Recovery Actions Taken**
-- {suggest_recovery(error_type)}
-
----------------------------------------------------
-    """
-
-        # Write to log file
-        log_file_exists = os.path.exists(log_file)
-        with open(log_file, "r+" if log_file_exists else "w") as f:
-            if log_file_exists:
-                old_content = f.read()
-                f.seek(0)  
-            f.write(log_entry + "\n")
-            if log_file_exists:
-                f.write(old_content)
-
-        self.return_dict["latest_report"] = log_entry
-        print(f"Logged error to {log_file}")
 
     def __store_model(self, metrics_path)->str:
         log_msg, locations = ModelTransporter(self.save_folder).full_save(
@@ -300,14 +174,14 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.return_dict['location_of_metrics'] = locations['metrics']
         return log_msg
     
-    def __log_num_epochs(self, path):
+    def __record_num_epochs(self, path):
         # Load in the results csv file and read the number of rows - 2
         df = pd.read_csv(path)
         num_epochs = len(df)
         self.return_dict["epochs"] = num_epochs
 
 
-    def begin_training(self):
+    async def begin_training(self):
         cwd = os.getcwd()
         print("Current working directory:", cwd)
         path = cwd + f'/gym/project_{self.project_id}/data.yaml'
@@ -318,7 +192,12 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         
         # Keep on training until no improvement is seen in ten epochs
         try:
+            def check_for_cancellation(data):
+                if self.will_cancel:
+                    raise asyncio.CancelledError("Training Cancelled")
+                
             start = datetime.now()
+            self.model.add_callback("on_train_epoch_end", check_for_cancellation)
             results = self.model.train(
                 data = path,
                 epochs = 10,
@@ -329,16 +208,17 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             )
             duration =  datetime.now() - start
             self.return_dict["training_duration"] = str(duration)
-            self.__log_num_epochs(results.save_dir / "results.csv")
+            self.__record_num_epochs(results.save_dir / "results.csv")
             # Save the model to some location
             storing_output = self.__store_model(results.save_dir)
 
             # Log the training session
-            self.__log_training_session(results, storing_output)
+            Logger().log_training_success(results, self, storing_output)
         except Exception as e:
-            self.__log_error(e)
+            print("LOGGING ERROR")
+            Logger().log_training_error(e, self)
         
-    def __leave_gym(self):
+    def leave_gym(self):
         base_path = f"./gym/project_{self.project_id}"
         if os.path.exists(base_path):
             shutil.rmtree(base_path)  # Delete the entire project directory
@@ -355,19 +235,20 @@ Training Session - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             #TODO: When a training session finishes remove the project id from the training set
             print("[INFO]: Training model on tiny...")
-            self.begin_training()
+            await self.begin_training()
 
             print("[INFO]: Cleaning up project directory from the gym...")
-            self.__leave_gym()
+            self.leave_gym()
         except Exception as e:
             print(f"[ERROR]: {e}")
             print(traceback.print_exc())
             return
         finally:
-            if callback and callable(callback):
+            if callback and callable(callback) and not self.will_cancel:
                 await callback(self.project_id, self.return_dict)
             else:
                 print("[ERROR] Did not call callback")
+                raise asyncio.CancelledError
         
         
         

@@ -117,12 +117,29 @@ async def train_project(project_id):
     try:
         project_id = int(project_id)
         await SCHEDULER.check_and_train(overrided_project=int(project_id))
-        df = pd.read_csv(SCHEDULER.projects[project_id]['location_of_metrics'] + '/results.csv')
-        json_data = df.to_dict(orient="records")  # Convert rows to a list of dictionaries
+        location_of_metrics = SCHEDULER.projects[project_id]['location_of_metrics']
+        json_data = {}
+        if location_of_metrics != '':
+            df = pd.read_csv(location_of_metrics + '/results.csv')
+            json_data = df.to_dict(orient="records")  # Convert rows to a list of dictionaries
         return jsonify(json_data), 200
     except Exception as e:
         print(traceback.format_exc())
         return jsonify({"error": f"Error in manual train init: {str(e)}"}), 500
+
+@app.route('/stop-<project_id>')
+async def stop_project_from_training(project_id):
+    # Check if project is in training queue
+    project_id = int(project_id)
+    if project_id in SCHEDULER.training_queue_set:
+        SCHEDULER.training_queue_set.remove(project_id)
+        SCHEDULER.training_queue.remove(project_id)
+        return {'success': True}, 200
+    elif project_id in SCHEDULER.training_dict:
+        await SCHEDULER.stop_project_in_training(project_id)
+        return {'success': True}, 200
+    else:
+        return {'warn': "Project not found"}, 404
 
 @app.route('/listen-for-<project_id>')
 def listen_for_id(project_id):
@@ -171,7 +188,7 @@ def update_settings():
 @app.route("/get-data", methods=['GET'])
 def get_data():
     # Get device availability
-    checker = ModelTransporter('')
+    checker = ModelTransporter('', service=SERVICE)
     
     devices = [{
         'name': 'Local Storage',
@@ -216,8 +233,6 @@ def get_data():
 @app.route('/get-log-content', methods=['GET'])
 def get_log_content():
     log_name = request.args.get('name')
-    offset = int(request.args.get('offset', 0))
-    chunk_size = 1024  # Size of each chunk in bytes
 
     log_path = os.path.join(os.getcwd(),"logs", log_name)
 
@@ -226,11 +241,9 @@ def get_log_content():
 
     try:
         with open(log_path, 'r') as log_file:
-            log_file.seek(offset)
-            chunk = log_file.read(chunk_size)
-            new_offset = log_file.tell()
+            content = log_file.readlines()
 
-        return jsonify({'content': chunk, 'new_offset': new_offset})
+        return jsonify({'content': content})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

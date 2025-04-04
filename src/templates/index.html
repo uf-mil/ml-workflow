@@ -325,11 +325,11 @@
                 .then(data => {
                     let content = element.querySelector('.log-content');
                     if (!content) {
-                        content = document.createElement('div');
+                        content = document.createElement('pre');
                         content.className = 'log-content';
                         element.appendChild(content);
                     }
-                    content.innerHTML = data.content;
+                    content.textContent = data.content.join("");
                     content.style.display = content.style.display === 'flex' ? 'none' : 'flex';
                 });
         }

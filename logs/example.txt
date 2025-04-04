@@ -57,3 +57,26 @@
 {recovery_actions}
 
 ---------------------------------------------------
+=======================================
+ ⚠️ Training Cancelled - 2025-04-04 11:25:38
+=======================================
+🔹 **Project Name**: RobotX_drone_landing_pad
+🔹 **Project ID**: 22
+🔹 **Total Data Points**: 367
+🔹 **Training Samples**: 293
+🔹 **Validation Samples**: 38
+🔹 **Test Samples**: 36
+🔹 **Number of Classes**: 4
+🔹 **Classes**: ['Helipad', 'R', 'N', 'R&N']
+
+📌 **Training Configuration**  
+- **Model**: ./models/yolo11n.pt
+- **Epochs Attempted**: 500
+- **Batch Size**: -1
+- **Image Size**: 640
+- **Device**: cpu
+
+⚠️ **Cancellation Details**  
+- **Cancelled By**: User Request  
+- **Timestamp**: 2025-04-04 11:25:38  
+- **Reason**: Manual interruption
