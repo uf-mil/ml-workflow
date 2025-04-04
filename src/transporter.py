@@ -10,36 +10,28 @@ from pathlib import Path
 
 from typing import Tuple, Any
 from memoryHandler import MemoryHandler
-
-API_KEY = os.getenv("API_KEY")
-USB_KEY_FILENAME = os.getenv("USB_KEY_FILENAME")
-
-# SMB set up
-FILE_SERVER_IP = os.getenv("FILE_SERVER_IP")
-SHARED_FOLDER = os.getenv("SHARED_FOLDER")    
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
-
+from service import Service
 
 class ModelTransporter:
-    def __init__(self, save_folder):
+    def __init__(self, save_folder, service:Service):
         self.save_folder = save_folder
+        self.service = service
 
     def scan_for_available_usb_device(self):
         usb_mount_points = glob.glob("/media/*/*")
         for mount in usb_mount_points:
-            key_file_path = os.path.join(mount, USB_KEY_FILENAME)
+            key_file_path = os.path.join(mount, self.service.usb_key_file_name)
             if os.path.exists(key_file_path):
                 with open(key_file_path, "r") as f:
                     key_content = f.read().strip()
-                if key_content == API_KEY:
+                if key_content == self.service.label_studio_api_key:
                     return mount  # Return the first valid USB mount point
         return None
         
     def is_file_server_available(self):
         try:
             socket.setdefaulttimeout(3)
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((FILE_SERVER_IP, 2222))
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.service.file_server_ip, self.service.file_server_port))
             return True
         except Exception as e:
             return False
@@ -61,10 +53,10 @@ class ModelTransporter:
         try:
             if self.is_file_server_available():
                 print("[INFO]: File server is available!")
-                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                smbclient.register_session(self.service.file_server_ip, username=self.service.file_server_username, password=self.service.file_server_password)
                 print("[SUCCESS]: File server is accessible!")
 
-                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", model_dir)
+                remote_path = f"//{self.service.file_server_ip}/"+ os.path.join(self.service.file_server_shared_folder, "ml-workflow", model_dir)
                 
                 smbclient.makedirs(remote_path, exist_ok=True)
 
@@ -111,12 +103,12 @@ class ModelTransporter:
         # Check if file server is available
     
         try:
-            if self.__is_file_server_available(FILE_SERVER_IP):
+            if self.__is_file_server_available(self.service.file_server_ip):
                 print("[INFO]: File server is available!")
-                smbclient.register_session(FILE_SERVER_IP, username=USERNAME, password=PASSWORD)
+                smbclient.register_session(self.service.file_server_ip, username=self.service.file_server_username, password=self.service.file_server_password)
                 print("[SUCCESS]: File server is accessible!")
 
-                remote_path = f"//{FILE_SERVER_IP}/"+ os.path.join(SHARED_FOLDER, "ml-workflow", save_path)
+                remote_path = f"//{self.service.file_server_ip}/"+ os.path.join(self.service.file_server_shared_folder, "ml-workflow", save_path)
                 
                 smbclient.makedirs(remote_path, exist_ok=True)
                 

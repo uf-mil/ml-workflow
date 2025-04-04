@@ -124,7 +124,7 @@
                 </div>
                 <div style="display: flex; flex-direction: column; justify-content: space-between;">
                     <p>Latest Report</p>
-                    <p id="latest_report">{{ latest_report }}</p>
+                    <pre id="latest_report">{{ latest_report }}</pre>
                 </div>
             </div>
         </div>
@@ -181,6 +181,7 @@
         async function trainProject(project_id) {
             const data = await fetchData(project_id);
             createChart(data)
+            getLatestResults("{{ project_id }}")
         }
 
         function stopTraining(project_id) {

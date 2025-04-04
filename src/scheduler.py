@@ -14,6 +14,7 @@ from label_studio_sdk import Client
 
 from trainer import Trainer
 from service import Service
+from logger import Logger
 
 class Scheduler:
     _instance = None
@@ -138,9 +139,6 @@ class Scheduler:
     
     async def stop_project_in_training(self, project_id):
         self.trainer_dict[project_id].will_cancel = True
-        # Keep the queue running
-        print("GOING TO CHECK AND TRAIN AGAIN")
-        await self.check_and_train()
 
     async def __listen_for_more_annotations_and_train(self, id, trainer:Trainer):
         try:
@@ -184,10 +182,17 @@ class Scheduler:
                 self.projects[id]['date_time_last_trained'] = datetime.now()
                 await trainer.train(callback=callback)
         except asyncio.CancelledError:
+            # Log the cancellation
+            Logger().log_training_cancellation(trainer)
+            self.projects[id]['latest_report'] = trainer.return_dict['latest_report']
+            self.update_csv_memory()
+            
             self.training_dict.pop(id)
             self.trainer_dict.pop(id)
+            
             trainer.leave_gym()
             print(f"Training cancelled for {id}")
+            await self.check_and_train()
             return
 
 
@@ -237,5 +242,6 @@ class Scheduler:
             try:
                 await asyncio.gather(*training_tasks)
             except asyncio.CancelledError:
+                print("CANCELLED HERE")
                 raise RuntimeError(f"Cancelled training")
         
