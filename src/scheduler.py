@@ -103,7 +103,7 @@ class Scheduler:
                             'class_acc_string': '',
                             'latest_report': ''
                         }
-                    with open("project_tasks.csv", "w", newline='') as file:
+                    with open("project_tasks.csv", "a", newline='') as file:
                         writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                         project_data = {
                             'id': project.id,
