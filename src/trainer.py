@@ -17,6 +17,7 @@ from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
 from transporter import ModelTransporter
+from service import Service
 from logger import Logger
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
@@ -183,7 +184,7 @@ class Trainer:
             save_img_label_pair(i, task, 'val')
 
     def __store_model(self, metrics_path)->str:
-        log_msg, locations = ModelTransporter(self.save_folder).full_save(
+        log_msg, locations = ModelTransporter(self.save_folder, service=Service()).full_save(
             self.model, 
             f"project_{self.project_id}.pt", 
             metrics_path,

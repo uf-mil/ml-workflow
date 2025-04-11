@@ -48,6 +48,9 @@
             background-color: #070707;
             color: #ffffff;
         }
+        button:disabled {
+            opacity: 0.2;
+        }
         .project-state {
             font-weight: bold;
         }
@@ -97,10 +100,10 @@
         <button style="width: 120px;" onclick="window.location.href='/'">🏠 Home</button>
     </header>
     <div style="display: flex; flex-direction: row; justify-content: space-around;">
-        <button onclick="trainProject('{{ project_id }}')">🏃 Train</button>
-        <button onclick="stopTraining('{{ project_id }}')">🛑 Stop</button>
-        <button onclick="linkProject('{{ project_id }}')">🔗 Link</button>
-        <button onclick="unlinkProject('{{ project_id }}')">✂️ Break Link</button>
+        <button id="train" onclick="trainProject('{{ project_id }}')">🏃 Train</button>
+        <button id="stop" onclick="stopTraining('{{ project_id }}')">🛑 Stop</button>
+        <button id="link" onclick="linkProject('{{ project_id }}')">🔗 Link</button>
+        <button id="break" onclick="unlinkProject('{{ project_id }}')">✂️ Break Link</button>
     </div>
     <div class="content">
         <div class="block">
@@ -137,10 +140,11 @@
 
     <script>
         // On load
-        let POLLING = false;
+        let POLLING = "{{ project_status }}" > 1;
         let chart;
-        let intervalId = -1;
+        let intervalId = POLLING ? setInterval(()=>{poll("{{ project_id }}")}, 1000): -1;
         getLatestResults("{{ project_id }}")
+        set_action_buttons("{{ project_status }}")
 
         function linkProject(project_id)
         {
@@ -150,7 +154,32 @@
                     const item = document.getElementById('project_status')
                     item.className = "project-state state-1"
                     item.innerHTML = 'TRACKED'
+                    set_action_buttons(1)
                 })
+        }
+
+        function set_action_buttons(project_status)
+        {
+            if (project_status === 3)
+                update_action_buttons(0,1,0,0)
+            else if (project_status === 2)
+                update_action_buttons(0,1,0,0)
+            else if (project_status === 1)
+                update_action_buttons(1,0,0,1)
+            else
+                update_action_buttons(1,0,1,0)
+        }
+
+        function update_action_buttons(trainEnable, stopEnable, linkEnable, breakEnable) {
+            trainButton = document.getElementById(`train`)
+            stopButton = document.getElementById(`stop`)
+            linkButton = document.getElementById(`link`)
+            breakButton = document.getElementById(`break`)
+
+            trainButton.disabled = !trainEnable
+            stopButton.disabled = !stopEnable
+            linkButton.disabled = !linkEnable
+            breakButton.disabled = !breakEnable
         }
 
         function unlinkProject(project_id)
@@ -161,6 +190,7 @@
                     const item = document.getElementById('project_status')
                     item.className = "project-state state-0"
                     item.innerHTML = 'NOT TRACKED'
+                    set_action_buttons(0)
                 })
         }
 
@@ -174,6 +204,7 @@
             const item = document.getElementById('project_status')
             item.className = "project-state state-1"
             item.innerHTML = 'TRACKED'
+            set_action_buttons(1)
 
             return data
         }
@@ -190,13 +221,14 @@
             const item = document.getElementById('project_status')
             item.className = "project-state state-1"
             item.innerHTML = 'TRACKED'
+            set_action_buttons(1)
         }
 
         function getLatestResults(project_id) {
             fetch(`/get-latest-results-for-${project_id}`)
                 .then(response => response.json())
                 .then(data=>createChart(data))
-        }
+        } 
 
         function createChart(data) {
             // Extract column names for dropdown
@@ -263,12 +295,14 @@
                             const item = document.getElementById('project_status')
                             item.className = "project-state state-3"
                             item.innerHTML = 'TRAINING'
+                            set_action_buttons(3)
                         }
                         else
                         {
                             const item = document.getElementById('project_status')
                             item.className = "project-state state-2"
                             item.innerHTML = `IN-QUEUE (${data['in-queue']})`
+                            set_action_buttons(2)
                         }
 
                         const training_duration = document.getElementById('training_duration')

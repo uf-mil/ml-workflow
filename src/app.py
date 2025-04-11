@@ -105,9 +105,7 @@ def unlink_project(project_id):
     try:
         webhooks = SCHEDULER.ls.webhooks.list()
         for wh in webhooks:
-            print(wh.project, wh)
             if wh.project == int(project_id):
-                print("deleted ", project_id)
                 SCHEDULER.ls.webhooks.delete(wh.id)
         
         SCHEDULER.projects[int(project_id)]['tracked'] = False
