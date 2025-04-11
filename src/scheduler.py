@@ -63,7 +63,10 @@ class Scheduler:
 
         # Create dict of projects and latest completed batch size
         # Check if project_tasks.csv exists and is populated
+        webhooks_set = set([webhook.project for webhook in self.ls.webhooks.list()])
+
         if os.path.exists("project_tasks.csv"):
+            project_ids = [int(project.id) for project in self.ls.projects.list()]
             with open("project_tasks.csv", 'r') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
@@ -80,14 +83,52 @@ class Scheduler:
                         'location_of_metrics': row["location_of_metrics"],
                         'class_acc_string': row["class_acc_string"],
                         'latest_report': row["latest_report"]
-                    } 
+                    }
+                    project_ids.remove(int(row['id']))
+            
+            if len(project_ids) > 0:
+                print(project_ids)
+                for id in project_ids:
+                    project = self.ls.projects.get(id)
+                    self.projects[id] = {
+                            'finished_tasks': project.num_tasks_with_annotations,
+                            'total_tasks': project.task_number,
+                            'tracked': project.id in webhooks_set,
+                            'title': project.title,
+                            'date_time_last_trained': '',
+                            'training_duration': '',
+                            'epochs': '',
+                            'locations_saved': '',
+                            'location_of_metrics': '',
+                            'class_acc_string': '',
+                            'latest_report': ''
+                        }
+                    with open("project_tasks.csv", "w", newline='') as file:
+                        writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
+                        project_data = {
+                            'id': project.id,
+                            'finished_tasks': project.num_tasks_with_annotations,
+                            'total_tasks': project.task_number,
+                            'tracked': project.id in webhooks_set,
+                            'title': project.title,
+                            'date_time_last_trained': '',
+                            'training_duration': '',
+                            'epochs': '',
+                            'locations_saved': '',
+                            'location_of_metrics': '',
+                            'class_acc_string': '',
+                            'latest_report': ''
+                        }
+
+                        writer.writerow(project_data)
+
+
         else: # Load finished_task data from LabelStudio
             with open("project_tasks.csv", "w", newline='') as file:
                 writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                 writer.writeheader()
 
                 projects = self.ls.projects.list()
-                webhooks_set = set([webhook.project for webhook in self.ls.webhooks.list()])
                 
                 for project in projects:
                     # Extracting available project data

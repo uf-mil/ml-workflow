@@ -17,6 +17,7 @@ from label_studio_sdk.client import LabelStudio
 from label_studio_sdk import Client
 
 from transporter import ModelTransporter
+from service import Service
 from logger import Logger
 
 LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
@@ -44,6 +45,23 @@ class Trainer:
         self.data_count_map = {}
 
         self.model = YOLO("./models/yolo11n.pt")
+        
+        def check_for_cancellation(data):
+            if self.will_cancel:
+                raise asyncio.CancelledError("Training Cancelled")
+
+        # Configure training callback functions to check for interrupts   
+        self.model.add_callback("on_pretrain_routine_start", check_for_cancellation)
+        self.model.add_callback("on_pretrain_routine_end", check_for_cancellation)
+        self.model.add_callback("on_train_start", check_for_cancellation)
+        self.model.add_callback("on_train_epoch_start", check_for_cancellation)
+        self.model.add_callback("on_train_batch_start", check_for_cancellation)
+        self.model.add_callback("optimizer_step", check_for_cancellation)
+        self.model.add_callback("on_before_zero_grad", check_for_cancellation)
+        self.model.add_callback("on_train_batch_end", check_for_cancellation)
+        self.model.add_callback("on_train_epoch_end", check_for_cancellation)
+        self.model.add_callback("on_fit_epoch_end", check_for_cancellation)
+
         self.return_dict = {
             "epochs": None,
             "training_duration": None,
@@ -52,6 +70,7 @@ class Trainer:
             "locations_saved": None,
             "location_of_metrics": None
         }
+
         self.save_folder = f"project_{project_id}"
 
         self.is_active = False
@@ -165,7 +184,7 @@ class Trainer:
             save_img_label_pair(i, task, 'val')
 
     def __store_model(self, metrics_path)->str:
-        log_msg, locations = ModelTransporter(self.save_folder).full_save(
+        log_msg, locations = ModelTransporter(self.save_folder, service=Service()).full_save(
             self.model, 
             f"project_{self.project_id}.pt", 
             metrics_path,
@@ -191,13 +210,9 @@ class Trainer:
             return
         
         # Keep on training until no improvement is seen in ten epochs
-        try:
-            def check_for_cancellation(data):
-                if self.will_cancel:
-                    raise asyncio.CancelledError("Training Cancelled")
-                
+        try:        
             start = datetime.now()
-            self.model.add_callback("on_train_epoch_end", check_for_cancellation)
+            
             results = self.model.train(
                 data = path,
                 epochs = 10,
