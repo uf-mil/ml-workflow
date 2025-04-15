@@ -132,6 +132,10 @@
             </div>
         </div>
         <div class="block">
+            <h2>Data Spread</h2>
+            <canvas id="histogramChart"></canvas>
+        </div>
+        <div class="block">
             <h2>Collected Data</h2>
             <select id="y-axis-selector" style="display:none;"></select>
             <canvas id="chart"></canvas>
@@ -144,6 +148,7 @@
         let chart;
         let intervalId = POLLING ? setInterval(()=>{poll("{{ project_id }}")}, 1000): -1;
         getLatestResults("{{ project_id }}")
+        getDataSpread("{{ project_id }}")
         set_action_buttons("{{ project_status }}")
 
         function linkProject(project_id)
@@ -222,6 +227,54 @@
             item.className = "project-state state-1"
             item.innerHTML = 'TRACKED'
             set_action_buttons(1)
+        }
+        
+        function getDataSpread(project_id) {
+            fetch(`/get-data-spread-for-${project_id}`)
+                .then(response => response.json())
+                .then(data => createHistogram(data))
+        }
+
+        function createHistogram(data) {
+            if (data == undefined)
+                return
+
+            console.log("here")
+            const labels = Object.keys(data);
+            const values = Object.values(data);  
+            
+            const ctx = document.getElementById('histogramChart').getContext('2d');
+            
+            const histogramChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                    label: 'Frequency',
+                    data: values,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                    x: {
+                        title: {
+                        display: true,
+                        text: 'Category'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                        display: true,
+                        text: 'Count'
+                        }
+                    }
+                    }
+                }
+                });
         }
 
         function getLatestResults(project_id) {

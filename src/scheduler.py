@@ -285,4 +285,23 @@ class Scheduler:
             except asyncio.CancelledError:
                 print("CANCELLED HERE")
                 raise RuntimeError(f"Cancelled training")
+    
+    def get_data_spread(self, project_id):
+        project = self.ls_client.get_project(project_id)
+        tasks = project.get_labeled_tasks()
+        classes = project.parsed_label_config["label"]["labels"]
+        
+        freq_dict = {}
+        for cls in classes:
+            freq_dict[cls] = 0
+        
+        for task in tasks:
+            annotations = task['annotations'][0]['result']
+            for obj in annotations:
+                obj = obj['value']
+                label = obj["rectanglelabels"][0]
+                freq_dict[label] += 1
+
+        return freq_dict
+
         

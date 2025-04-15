@@ -102,7 +102,7 @@ class Trainer:
             yaml.dump(yaml_data, file)
     
     def get_and_organize_data(self):
-        tasks = self.project_client.get_tasks()
+        tasks = self.project_client.get_labeled_tasks()
 
         def download_file(url, output_path):
             headers = {"Authorization": f"Token {API_KEY}"}  # Add authentication header

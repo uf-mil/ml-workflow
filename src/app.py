@@ -70,6 +70,11 @@ def project_overview(project_id):
 
     return render_template("project.html", **project_data)
 
+@app.route("/get-data-spread-for-<project_id>")
+def get_data_spread(project_id):
+    data_spread = SCHEDULER.get_data_spread(project_id)
+    return jsonify(data_spread), 200
+
 @app.route("/get-latest-results-for-<project_id>")
 def get_latest_results_for(project_id):
     results_data = MemoryHandler().pull_latest_results_for(project_id)

@@ -103,7 +103,7 @@ class ModelTransporter:
         # Check if file server is available
     
         try:
-            if self.__is_file_server_available(self.service.file_server_ip):
+            if self.is_file_server_available(self.service.file_server_ip):
                 print("[INFO]: File server is available!")
                 smbclient.register_session(self.service.file_server_ip, username=self.service.file_server_username, password=self.service.file_server_password)
                 print("[SUCCESS]: File server is accessible!")
