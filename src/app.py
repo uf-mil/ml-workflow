@@ -39,6 +39,11 @@ def show_settings():
         batch_size_threshold=SERVICE.batch_size_threshold,
         minutes_to_wait_for_next_annotation=SERVICE.minutes_to_wait_for_next_annotation,
         minimum_annotations_required=SERVICE.minimum_annotations_required,
+        max_epochs_allowed = SERVICE.max_epochs_allowed,
+        patience = SERVICE.patience,
+        train = SERVICE.train,
+        test = SERVICE.test,
+        val = SERVICE.val,
         dark_mode = SERVICE.dark_mode
     )
 
@@ -142,10 +147,11 @@ async def stop_project_from_training(project_id):
     if project_id in SCHEDULER.training_queue_set:
         SCHEDULER.training_queue_set.remove(project_id)
         SCHEDULER.training_queue.remove(project_id)
-        return {'success': True}, 200
+        return jsonify({'tracked': SCHEDULER.projects[project_id]['tracked']}), 200
     elif project_id in SCHEDULER.training_dict:
         await SCHEDULER.stop_project_in_training(project_id)
-        return {'success': True}, 200
+        print(SCHEDULER.projects[project_id]['tracked'])
+        return jsonify({'tracked': SCHEDULER.projects[project_id]['tracked']}), 200
     else:
         return {'warn': "Project not found"}, 404
 
@@ -184,6 +190,11 @@ def update_settings():
         SERVICE.batch_size_threshold = int(settings['BATCH_SIZE_THRESHOLD'])
         SERVICE.minutes_to_wait_for_next_annotation = float(settings['MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION']) 
         SERVICE.minimum_annotations_required = int(settings['MINIMUM_ANNOTATIONS_REQUIRED'])
+        SERVICE.max_epochs_allowed = int(settings["MAX_EPOCHS_ALLOWED"])
+        SERVICE.patience = int(settings["PATIENCE"])
+        SERVICE.train = float(settings["TRAIN"])
+        SERVICE.test = float(settings["TEST"])
+        SERVICE.val = float(settings["VAL"])
 
         # Configure dark mode
         SERVICE.dark_mode = bool(settings["DARK_MODE"])

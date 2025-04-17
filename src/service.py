@@ -31,9 +31,22 @@ class Service:
         self.batch_size_threshold = int(os.getenv('BATCH_SIZE_THRESHOLD', 32))
         self.minutes_to_wait_for_next_annotation = float(os.getenv('MINUTES_TO_WAIT_FOR_NEXT_ANNOTATION', 5)) 
         self.minimum_annotations_required = int(os.getenv('MINIMUM_ANNOTATIONS_REQUIRED', 10))
+        self.max_epochs_allowed = int(os.getenv('MAX_EPOCHS_ALLOWED', 10))
+        self.patience = int(os.getenv("PATIENCE", 5))
+        self.load_train_test_validation_split()
 
         # Dark mode
         self.dark_mode = os.getenv('DARK_MODE', 'False') == 'True'
+    
+    def load_train_test_validation_split(self):
+        self.train = float(os.getenv('TRAIN', 0.8))
+        self.test = float(os.getenv("TEST", 0.1))
+        self.val = float(os.getenv("VAL", 0.1))
+
+        if self.train + self.test + self.val != 1.0:
+             self.train = 0.8
+             self.test = 0.1
+             self.val = 0.1
 
 
           

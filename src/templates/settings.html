@@ -76,11 +76,23 @@
             border-bottom: 1px solid #e0e0e0;
         }
 
+        .special-setting {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
         .dark-mode .setting {
             border-bottom: 1px solid #555;
         }
 
         .setting:last-child {
+            border-bottom: none;
+        }
+
+        .special-setting:last-child {
             border-bottom: none;
         }
 
@@ -206,6 +218,20 @@
             <span class="setting-label">Minimum Annotations Required:</span>
             <input class="setting-value" value="{{ minimum_annotations_required }}" onchange="markChanges()">
         </div>
+        <div class="setting">
+            <span class="setting-label">Max Epochs Allowed:</span>
+            <input class="setting-value" value="{{ max_epochs_allowed }}" onchange="markChanges()">
+        </div>
+        <div class="setting">
+            <span class="setting-label">Patience:</span>
+            <input class="setting-value" value="{{ patience }}" onchange="markChanges()">
+        </div>
+        <div class="special-setting">
+            <span class="setting-label" style="width: 400px;">Train/Test/Validation Split:</span>
+            <input id="train" class="setting-value" value="{{ train }}" onchange="markChanges()">
+            <input id="test" class="setting-value" value="{{ test }}" onchange="markChanges()">
+            <input id="val" class="setting-value" value="{{ val }}" onchange="markChanges()">
+        </div>
     </div>
 
     <button id="save-button" class="save-button" disabled onclick="updateSettings()">💾 Save Changes</button>
@@ -239,6 +265,15 @@
                 console.log(label, value)
                 }
             });
+            
+            // Save the train test and val setting values
+            const train = document.getElementById('train').value
+            settings["TRAIN"] = train
+            const test = document.getElementById('test').value
+            settings["TEST"] = test
+            const val = document.getElementById('val').value
+            settings["VAL"] = val
+
 
             fetch('/update-settings', {
                 method: 'POST',

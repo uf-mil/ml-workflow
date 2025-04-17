@@ -69,6 +69,9 @@
             padding: 20px;
             border-radius: 20px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            width: 80%;
+            max-width: 1300px;
+            margin: auto;
         }
         .dark-mode .block {
             background: rgb(24, 24, 24);
@@ -132,11 +135,11 @@
             </div>
         </div>
         <div class="block">
-            <h2>Data Spread</h2>
+            <h2>Annotation Frequencies</h2>
             <canvas id="histogramChart"></canvas>
         </div>
         <div class="block">
-            <h2>Collected Data</h2>
+            <h2>Latest Training Data</h2>
             <select id="y-axis-selector" style="display:none;"></select>
             <canvas id="chart"></canvas>
         </div>
@@ -206,10 +209,6 @@
             response = await fetch(`/train-${project_id}`)
             data = await response.json()
             POLLING = false
-            const item = document.getElementById('project_status')
-            item.className = "project-state state-1"
-            item.innerHTML = 'TRACKED'
-            set_action_buttons(1)
 
             return data
         }
@@ -221,12 +220,18 @@
         }
 
         function stopTraining(project_id) {
+            const status = document.getElementById('project_status')
+            status.innerHTML = 'STOPPING...'
             fetch(`/stop-${project_id}`)
-            POLLING = false
-            const item = document.getElementById('project_status')
-            item.className = "project-state state-1"
-            item.innerHTML = 'TRACKED'
-            set_action_buttons(1)
+            .then(response => response.json())
+            .then(data => {
+                POLLING = false
+                const tracked = data.tracked
+                const item = document.getElementById('project_status')
+                item.className = tracked ? "project-state state-1" : "project-state state-0"
+                item.innerHTML = tracked ? 'TRACKED' : 'NOT TRACKED'
+                set_action_buttons(tracked)
+            })
         }
         
         function getDataSpread(project_id) {
@@ -239,7 +244,6 @@
             if (data == undefined)
                 return
 
-            console.log("here")
             const labels = Object.keys(data);
             const values = Object.values(data);  
             
@@ -352,12 +356,21 @@
                             item.innerHTML = 'TRAINING'
                             set_action_buttons(3)
                         }
-                        else
+                        else if (data['in-queue'] > -1)
                         {
                             const item = document.getElementById('project_status')
                             item.className = "project-state state-2"
                             item.innerHTML = `IN-QUEUE (${data['in-queue']})`
                             set_action_buttons(2)
+                        }
+                        else
+                        {
+                            console.log("here")
+                            const tracked = data.tracked
+                            const item = document.getElementById('project_status')
+                            item.className = tracked ? "project-state state-1" : "project-state state-0"
+                            item.innerHTML = tracked ? 'TRACKED' : 'NOT TRACKED'
+                            set_action_buttons(tracked)
                         }
 
                         const training_duration = document.getElementById('training_duration')

@@ -215,8 +215,8 @@ class Trainer:
             
             results = self.model.train(
                 data = path,
-                epochs = 10,
-                patience = 5,
+                epochs = Service().max_epochs_allowed,
+                patience = Service().patience,
                 batch = -1,
                 device = "cuda" if torch.cuda.is_available() else "cpu",
                 project = cwd + f"/gym/project_{self.project_id}/runs"
