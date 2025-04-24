@@ -9,3 +9,4 @@ logs/*.txt
 gym/*/
 memory/*
 project_tasks.csv
+*.yaml
