@@ -11,7 +11,7 @@ from service import Service
 from transporter import ModelTransporter
 from memoryHandler import MemoryHandler
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 
 app = Flask(__name__)
 
@@ -25,6 +25,12 @@ def check_environment():
         'index.html',
         dark_mode=SERVICE.dark_mode
     )
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    
 
 @app.route("/settings")
 def show_settings():
@@ -96,6 +102,8 @@ def link_project(project_id):
             send_payload=True,
             send_for_all_actions=False,
             actions=[
+                'TASKS_CREATED',
+                'TASKS_DELETED',
                 'ANNOTATION_CREATED',
                 'ANNOTATIONS_DELETED',
                 'ANNOTATIONS_CREATED',
@@ -224,10 +232,12 @@ def get_data():
     }]
 
     # Get monitored projects
+    SCHEDULER.get_projects()
     projects = [{
         'title': values["title"],
         'id': id,
         'num_tasks_with_annotations': values["finished_tasks"],
+        'tracked_annotations_ratio': f"{values['tracked_annotations']} / {SERVICE.batch_size_threshold}",
         'task_number': values["total_tasks"],
         'state':3 if id in SCHEDULER.training_dict else 
                 2 if id in SCHEDULER.training_queue_set else 
@@ -271,11 +281,17 @@ async def update_made_to_labelstudio():
     data = request.get_json()
     project_id = data['project']['id']
     num_annotations = int(data['project']['num_tasks_with_annotations'])
+    num_tasks = int(data['project']['task_number'])
+    recorded_num_annotations = int(SCHEDULER.projects[project_id]['finished_tasks'])
     
     # Receive webhook and update tracking information
-    SCHEDULER.project_tasks_dif[project_id] = abs(num_annotations - SCHEDULER.project_finished_tasks_dict[project_id])
+    SCHEDULER.projects[project_id]['tracked_annotations'] += max(0, num_annotations - recorded_num_annotations) 
+    SCHEDULER.projects[project_id]['finished_tasks'] = num_annotations
+    SCHEDULER.projects[project_id]['total_tasks'] = num_tasks
     
-    print(project_id, num_annotations, SCHEDULER.project_finished_tasks_dict[project_id], SCHEDULER.project_tasks_dif[project_id])
+    print(project_id, num_annotations, SCHEDULER.project_finished_tasks_dict[project_id], SCHEDULER.projects[project_id]['tracked_annotations'])
+
+    SCHEDULER.update_csv_memory()
     
     # Check to start training
     await SCHEDULER.check_and_train()

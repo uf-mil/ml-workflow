@@ -53,7 +53,6 @@ class Scheduler:
         
         self.projects = {}
         self.project_finished_tasks_dict = {}
-        self.project_tasks_dif = {}
         self.training_dict = {}
         self.trainer_dict = {}
         self.training_queue_set = set()
@@ -75,6 +74,7 @@ class Scheduler:
                         'finished_tasks': row["finished_tasks"],
                         'total_tasks': row["total_tasks"],
                         'tracked': row["tracked"] == 'True',
+                        'tracked_annotations': int(row['tracked_annotations']),
                         'title': row["title"],
                         'date_time_last_trained': row["date_time_last_trained"],
                         'training_duration': row["training_duration"],
@@ -84,48 +84,19 @@ class Scheduler:
                         'class_acc_string': row["class_acc_string"],
                         'latest_report': row["latest_report"]
                     }
-                    project_ids.remove(int(row['id']))
+                    if int(row['id']) in project_ids:
+                        project_ids.remove(int(row['id']))
             
             if len(project_ids) > 0:
                 print(project_ids)
                 for id in project_ids:
                     project = self.ls.projects.get(id)
-                    self.projects[id] = {
-                            'finished_tasks': project.num_tasks_with_annotations,
-                            'total_tasks': project.task_number,
-                            'tracked': project.id in webhooks_set,
-                            'title': project.title,
-                            'date_time_last_trained': '',
-                            'training_duration': '',
-                            'epochs': '',
-                            'locations_saved': '',
-                            'location_of_metrics': '',
-                            'class_acc_string': '',
-                            'latest_report': ''
-                        }
-                    with open("project_tasks.csv", "a", newline='') as file:
-                        writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
-                        project_data = {
-                            'id': project.id,
-                            'finished_tasks': project.num_tasks_with_annotations,
-                            'total_tasks': project.task_number,
-                            'tracked': project.id in webhooks_set,
-                            'title': project.title,
-                            'date_time_last_trained': '',
-                            'training_duration': '',
-                            'epochs': '',
-                            'locations_saved': '',
-                            'location_of_metrics': '',
-                            'class_acc_string': '',
-                            'latest_report': ''
-                        }
-
-                        writer.writerow(project_data)
+                    self.__store_project(project, webhooks_set)
 
 
         else: # Load finished_task data from LabelStudio
             with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","tracked_annotations","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                 writer.writeheader()
 
                 projects = self.ls.projects.list()
@@ -137,6 +108,7 @@ class Scheduler:
                         'finished_tasks': project.num_tasks_with_annotations,
                         'total_tasks': project.task_number,
                         'tracked': project.id in webhooks_set,
+                        'tracked_annotations': 0,
                         'title': project.title,
                         'date_time_last_trained': '',
                         'training_duration': '',
@@ -152,7 +124,7 @@ class Scheduler:
     def update_csv_memory(self):
         os.remove("project_tasks.csv")
         with open("project_tasks.csv", "w", newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
+                writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","tracked_annotations","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
                 writer.writeheader()
 
                 projects = self.ls.projects.list()
@@ -166,6 +138,7 @@ class Scheduler:
                         'finished_tasks': project.num_tasks_with_annotations,
                         'total_tasks': project.task_number,
                         'tracked': project.id in webhooks_set,
+                        'tracked_annotations': local_project['tracked_annotations'],
                         'title': project.title,
                         'date_time_last_trained': local_project['date_time_last_trained'],
                         'training_duration': local_project['training_duration'],
@@ -204,7 +177,6 @@ class Scheduler:
                 RESET = '\033[0m'
                 print(f"{GREEN}TRAINER {id} BEGAN TRAINING{RESET}")
                 async def callback(id, train_output):
-                    self.project_tasks_dif[id] = 0
                     self.project_finished_tasks_dict[id] = last_amount_annotated
                     # Store train output in dict
                     self.projects[id]['epochs'] = train_output['epochs']
@@ -213,6 +185,7 @@ class Scheduler:
                     self.projects[id]['latest_report'] = train_output['latest_report']
                     self.projects[id]['locations_saved'] = train_output['locations_saved']
                     self.projects[id]['location_of_metrics'] = train_output['location_of_metrics']
+                    self.projects[id]['tracked_annotations'] = 0
 
                     self.training_dict.pop(id)
                     self.trainer_dict.pop(id)
@@ -245,7 +218,8 @@ class Scheduler:
                     self.training_queue.append(id)
                     self.training_queue_set.add(id)
 
-        for id, val in self.project_tasks_dif.items():
+        for id, val in self.projects.items():
+            val = int(val["tracked_annotations"])
             if val >= self.service.batch_size_threshold and self.project_finished_tasks_dict[id] > self.service.minimum_annotations_required: # Condition to set for training
                 print('**',id, val, self.project_finished_tasks_dict[id])
                 # Check if id is not already queued or if the id is training only add it back into the queue if a new batch of data one more batch was labeled while it was training
@@ -303,5 +277,59 @@ class Scheduler:
                 freq_dict[label] += 1
 
         return freq_dict
+    
+    
+    def get_projects(self):
+        external_projects = {p.id: p for p in self.ls_client.get_projects()}
+        webhooks_set = set([webhook.project for webhook in self.ls.webhooks.list()])
+        external_ids = set(external_projects.keys())
+        internal_ids = set(self.projects.keys())
+        
+        external_only = external_ids - internal_ids
+        local_only = internal_ids - external_ids
+
+        for id in local_only:
+            del self.projects[id]
+        
+        for id in external_only:
+            self.__store_project(external_projects[id], webhooks_set)
+        
+        if len(local_only) > 0:
+            self.update_csv_memory()
+        
+    def __store_project(self, project, webhooks_set):
+        self.projects[project.id] = {
+                'finished_tasks': project.num_tasks_with_annotations,
+                'total_tasks': project.task_number,
+                'tracked': project.id in webhooks_set,
+                'tracked_annotations': 0,
+                'title': project.title,
+                'date_time_last_trained': '',
+                'training_duration': '',
+                'epochs': '',
+                'locations_saved': '',
+                'location_of_metrics': '',
+                'class_acc_string': '',
+                'latest_report': ''
+            }
+        with open("project_tasks.csv", "a", newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=["id","finished_tasks","total_tasks","tracked","tracked_annotations","title","date_time_last_trained","training_duration","epochs","locations_saved","location_of_metrics","class_acc_string","latest_report"])
+            project_data = {
+                'id': project.id,
+                'finished_tasks': project.num_tasks_with_annotations,
+                'total_tasks': project.task_number,
+                'tracked': project.id in webhooks_set,
+                'tracked_annotations': 0,
+                'title': project.title,
+                'date_time_last_trained': '',
+                'training_duration': '',
+                'epochs': '',
+                'locations_saved': '',
+                'location_of_metrics': '',
+                'class_acc_string': '',
+                'latest_report': ''
+            }
+
+            writer.writerow(project_data)
 
         

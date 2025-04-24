@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIL Autotrainer</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/x-icon">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -347,6 +348,9 @@
                 {
                     item.innerHTML = 'TRACKED'
                     update_action_buttons(project.id, true, false, false, true)
+
+                    const ratio = document.getElementById(`ratio-${project.id}`)
+                    ratio.innerText = project.tracked_annotations_ratio
                 }
                 else
                 {
@@ -373,6 +377,7 @@
                         </div>
                         <div class="project-stats">
                             <div>${project.num_tasks_with_annotations} / ${project.task_number}</div>
+                            <div style="color: gray" id="ratio-${project.id}"></div>
                             <div id="project-state-${project.id}" class="project-state state-${project.state}">
                                 ${project.state === 3 ? 'TRAINING' : project.state === 2 ? 'IN-QUEUE' : project.state === 1 ? 'TRACKED' : 'NOT TRACKED'}
                             </div>
