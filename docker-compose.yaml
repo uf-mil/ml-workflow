@@ -1,0 +1,8 @@
+services:
+  flask-app:
+    build: .
+    ports:
+      - 2704:2704
+    volumes:
+      - .:/app
+    restart: always 

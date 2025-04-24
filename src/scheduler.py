@@ -42,12 +42,12 @@ class Scheduler:
 
         self._initialized = True
 
-        load_dotenv()
-        __LABEL_STUDIO_URL = os.getenv("LABEL_STUDIO_URL")
-        __API_KEY = os.getenv("API_KEY")
-
-        self.ls = LabelStudio(base_url=__LABEL_STUDIO_URL, api_key=__API_KEY)
-        self.ls_client = Client(url=__LABEL_STUDIO_URL, api_key=__API_KEY)
+        try:
+            self.ls = LabelStudio(base_url=service.label_studio_url, api_key=service.label_studio_api_key)
+            self.ls_client = Client(url=service.label_studio_url, api_key=service.label_studio_api_key)
+        except Exception:
+            self.ls = None
+            self.ls_client = None
 
         self.service = Service()
         
